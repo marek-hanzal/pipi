@@ -1,4 +1,4 @@
-# UK100
+# US500 Pepperstone
 
-Here are some example strategies optimized for **UK100** (Pepperstone). If you want to port them on another market,
-they will probably **not work** as expected. A lot of MA based strategies broke between markets.
+Here are strategies and timeframes for the US500 Pepperstone index. Individual samples may not be most profitable, but each
+timeframe folder contains `_strategy` folder, which is currently most profitable strategy for that timeframe.

@@ -94,11 +94,11 @@ Because each pattern may execute an action, for example setting variable, you ca
 
 The script tracks variables in two scopes - one per-bar and one global.
 
-#### Scope - State
+#### State
 
-Represented by `s:` prefix. State means "keep and don't change until I want to" (or internal indicator wants to). This is useful, for example, if you want set uptrend/downtrend when it starts.
+Represented by `s:` prefix. State means _"keep and don't change until I want to"_ (or internal indicator wants to). This is useful, for example, if you want set uptrend/downtrend when it starts.
 
-#### Scope - Bar
+#### Bar
 
 Represented by `b:` prefix. Bar variables are used only temporarily on the current bar, which is useful when you want to render a single marker or keep a value only until the next bar.
 

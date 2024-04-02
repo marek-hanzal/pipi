@@ -33,7 +33,7 @@ Tracks daily high and low prices.
 **Context**: `day`
 
 **Config:**
-- `#.factor`          - factor used to calculate day's factor (used for level size calculation)
+- `s:#.factor`        - factor used to calculate day's factor (used for level size calculation)
 
 **Flags:**
 - `b:day.change`      - new day/new low/new high
@@ -51,7 +51,7 @@ Tracks daily high and low prices.
 This one works in cooperation with day's low/high. Tracks fibbonachi levels during the day.
 
 **Config:**
-- `#.factor`          - affected by this config, through the day's factor
+- `s:#.factor`           - affected by this config, through the day's factor
 
 **Levels:**
 - `s:day-fibbonachi.0`	 - day's high
@@ -78,3 +78,63 @@ _No config required._
 **Values:**
 - `b:candle.[open/high/low/close]`      - candle's OHLC; for example `b:candle.low`
 
+## MACD
+
+You know this one.
+
+**Context**: `macd`
+
+**Config:**
+- `s:#.macd.length`            - length (int)
+- `s:#.macd.signal`            - signal length (int)
+- `s:#.macd.impulse`           - how many bars must be in "flat" zone to trigger impulse
+- `s:#.macd.dmz`               - when in DMZ, long/short signals are not triggered (this may be quite large number, depending on your usage, for example 6.6 or so)
+- `s:#.macd.flat`              - which value of histogram is considered being flat (should be low number, like 0.1 or so)
+
+**Flags:**
+- `b:macd.dmz`                 - is MACD in a DMZ zone
+- `b:macd.flat`                - is histogram flat
+- `b:macd.up.low`              - weak uptrend signal
+- `b:macd.up.high`             - strong uptrend signal
+- `b:macd.up.impulse`          - impulse uptrend signal
+- `b:macd.down.low`            - weak downtrend signal
+- `b:macd.down.high`           - strong downtrend signal
+- `b:macd.down.impulse`        - impulse downtrend signal
+- `b:macd.long-dmz`            - long signal in DMZ zone
+- `b:macd.long`                - long signal outside DMZ zone
+- `b:macd.short-dmz`           - short signal in DMZ zone
+- `b:macd.short`               - short signal outside DMZ zone
+
+## SuperTrend
+
+SuperTrend uses fast and slow ATR to calculate trend; you may pick, which one you want to use.
+
+Both fast and slow are useful to confirm each other's "real" trend.
+
+**Context**: `super-trend`
+
+**Config:**
+- `s:#.super-trend.fast-length`        - fast ATR length
+- `s:#.super-trend.fast-factor`        - fast factor
+- `s:#.super-trend.slow-length`        - slow ATR length
+- `s:#.super-trend.slow-factor`        - slow factor
+
+**Flags:**
+- `b:super-trend.fast.up`              - fast trend is uptrend
+- `b:super-trend.fast.up.start`        - fast trend has started (one time flag)
+- `b:super-trend.fast.up.end`          - fast trend has ended (one time flag)
+
+- `b:super-trend.fast.down`            - fast trend is downtrend
+- `b:super-trend.fast.down.start`      - fast trend has started (one time flag)
+- `b:super-trend.fast.down.end`        - fast trend has ended (one time flag)
+
+- `b:super-trend.slow.up`              - slow trend is uptrend
+- `b:super-trend.slow.up.start`        - slow trend has started (one time flag)
+- `b:super-trend.slow.up.end`          - slow trend has ended (one time flag)
+
+- `b:super-trend.slow.down`            - slow trend is downtrend
+- `b:super-trend.slow.down.start`      - slow trend has started (one time flag)
+- `b:super-trend.slow.down.end`        - slow trend has ended (one time flag)
+
+- `b:super-trend.up`                   - both fast and slow are uptrend
+- `b:super-trend.down`                 - both fast and slow are downtrend

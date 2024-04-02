@@ -343,7 +343,7 @@ context_state(Context context, map<string, Level> levels) =>
 
 context_levels(Context context, Contexts contexts, map<string, Level> levels) =>
 	context_state(context, levels)
-	
+
 	for [__name, __level] in levels
 		context_state(context, __name + ".low",		__level.low)
 		context_state(context, __name + ".high",	__level.high)
@@ -483,9 +483,9 @@ fibbonachi(Level level, float factor = 0) =>
 
 value_of(string[] value, Contexts contexts) =>
 	switch value.size()
-		1 => 
+		1 =>
 			str.tonumber(value.get(0))
-		
+
 		3 =>
 			contexts_value(contexts, value.get(0), value.get(1), value.get(2))
 
@@ -494,20 +494,20 @@ value_of(string[] value, Contexts contexts) =>
 
 flag_of(string[] value, Contexts contexts) =>
 	switch value.size()
-		1 => 
+		1 =>
 			switch value.get(0)
 				"true"	=> true
 				"false"	=> false
 				=> na
-		
+
 		3 =>
 			contexts_flag(contexts, value.get(0), value.get(1), value.get(2))
 
 name_of(string[] value, Contexts contexts) =>
 	switch value.size()
-		1 => 
+		1 =>
 			value.get(0)
-		
+
 		3 =>
 			contexts_name(contexts, value.get(0), value.get(1), value.get(2))
 
@@ -516,7 +516,7 @@ name_of(string[] value, Contexts contexts) =>
 //  ====================================================================================================================================================
 
 math(Math value, Contexts contexts) =>
-	_left	=	value_of(value.left,	contexts) 
+	_left	=	value_of(value.left,	contexts)
 	_right	=	value_of(value.right,	contexts)
 
 	if na(_right)
@@ -568,7 +568,7 @@ candle_match(Contexts contexts, Candle candle) =>
 //	@function	This is strict pattern matching, meaning all matched candles must be in the row without interrputing
 pattern_strict(Pattern pattern, array<Contexts> candles) =>
 	bool	_result			=	false
-	int		_rules_size		=	pattern.candle.size()	
+	int		_rules_size		=	pattern.candle.size()
 	int		_candles_size	=	candles.size()
 
 	//	If there are more rules than candles, there could be no match
@@ -587,7 +587,7 @@ pattern_strict(Pattern pattern, array<Contexts> candles) =>
 //	@function	Non-strict pattern matching searches for patterns continually; that means it could match during candles, not necessarily in the row
 pattern_non_strict(Pattern pattern, array<Contexts> candles) =>
 	bool	_result			=	false
-	int		_rules_size		=	pattern.candle.size()	
+	int		_rules_size		=	pattern.candle.size()
 	int		_candles_size	=	candles.size()
 
 	//	If there are more rules than candles, there could be no match
@@ -749,15 +749,15 @@ parse_pattern_candle_value(string[] rule, Candle candle) =>
 parse_pattern_candle(string line, Candle candle) =>
 	_rule = str.split(line, "\t")
 	switch _rule.get(0)
-		"flag" => 
+		"flag" =>
 			_rule.shift()
 			parse_pattern_candle_flag(_rule, true, candle)
 
-		"!flag" => 
+		"!flag" =>
 			_rule.shift()
 			parse_pattern_candle_flag(_rule, false, candle)
 
-		"value" => 
+		"value" =>
 			_rule.shift()
 			parse_pattern_candle_value(_rule, candle)
 
@@ -767,7 +767,7 @@ parse_action_profit_loss(string[] source, Action action) =>
 	_type = source.shift()
 
 	switch source.size()
-		1 => 
+		1 =>
 			_value	=	parse_math_value(source.get(0))
 			switch _type
 				"profit"	=>	action.profit	:=	math_create(_value)
@@ -842,7 +842,7 @@ parse(string script) =>
 				"parse_set" =>
 					parse_set(_text, _set_value)
 
-				"parse_pattern" =>					
+				"parse_pattern" =>
 					parse_pattern(_stack, _text, _pattern)
 
 				"parse_pattern_candle" =>
@@ -899,11 +899,11 @@ action_trade(Action action, Contexts contexts) =>
 			if action.order > 0
 				_entry:= true
 				strategy.entry("long", direction = strategy.long)
-				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = "Long: SL", comment_profit = "Long: TP")    
+				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = "Long: SL", comment_profit = "Long: TP")
 			else if action.order < 0
 				_entry:= true
 				strategy.entry("short", direction = strategy.short)
-				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = "Short: SL", comment_profit = "Short: TP")  
+				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = "Short: SL", comment_profit = "Short: TP")
 
 			if _entry
 				contexts_state(contexts, "#", "order",	action.order)
@@ -1040,7 +1040,7 @@ _use_candle_level(Context context, string key, map<string, Value> values) =>
 //	@function	Most interesting provider: takes current candle and computes all the flags related to it, so it can be chacked for patterns later on
 use_candle(Contexts contexts) =>
 	var Context		_context	=	context_create("candle")
-	
+
 	_is_green	=	open	<= close
 	_is_red		=	open	> close
 	_low		=	math.min(open, close)
@@ -1114,10 +1114,10 @@ use_macd(Contexts contexts) =>
 	var int			_impulse_length	=	int(contexts_state_value(	contexts, "#", "macd.impulse",		3))
 	var float		_dmz_factor		=	contexts_state_value(		contexts, "#", "macd.dmz",			6.6)
 	var float		_flat_factor	=	contexts_state_value(		contexts, "#", "macd.flat",			0.1)
-	
+
 	_high 		= use_macd_smma(	high, 	_length)
 	_low		= use_macd_smma(	low,	_length)
-	_middle		= use_macd_zlema(	hlc3,	_length) 
+	_middle		= use_macd_zlema(	hlc3,	_length)
 
 	_macd 		= (_middle > _high) ? (_middle - _high) : (_middle < _low) ? (_middle - _low) : 0
 	_signal 	= ta.sma(_macd, _signal_length)
@@ -1177,7 +1177,7 @@ use_super_trend(Contexts contexts) =>
 	context_bar(_context, "fast.down.end",		_fast_trend < 0 and _fast_trend[1] > 0)
 
 	context_bar(_context, "slow.signal",		_slow_signal)
-	
+
 	context_bar(_context, "slow.up",			_slow_trend < 0)
 	context_bar(_context, "slow.up.start",		_slow_trend < 0 and _slow_trend[1] > 0)
 	context_bar(_context, "slow.up.end",		_slow_trend > 0 and _slow_trend[1] < 0)
@@ -1188,6 +1188,28 @@ use_super_trend(Contexts contexts) =>
 
 	context_bar(_context, "up",					_fast_trend < 0 and _slow_trend < 0)
 	context_bar(_context, "down",				_fast_trend > 0 and _slow_trend > 0)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      CCI
+//  ====================================================================================================================================================
+
+use_cci(Contexts contexts) =>
+	var Context	_context	=	context_create("cci")
+	var int		_length		=	int(contexts_state_value(	contexts, "#", "cci.length",		20))
+
+	_signal = ta.cci(hlc3, _length)
+
+	context_bar(_context, "below.exit",			_signal[1]	<	-100	and _signal 	> -100)
+	context_bar(_context, "below.enter",		_signal		<	-100	and _signal[1]	> -100)
+
+	context_bar(_context, "above.enter", 		_signal[1]	<	100		and _signal[1]	> 100)
+	context_bar(_context, "above.exit", 		_signal		>	100		and _signal[1]	< 100)
+
+	context_bar(_context, "zone", 				_signal 	>= -100		and _signal		<= 100)
+
+	context_bar(_context, "signal", 			_signal)
 
 	use_context(contexts, _context)
 
@@ -1231,6 +1253,7 @@ main(string script) =>
 	use_session(_contexts)
 	use_macd(_contexts)
 	use_super_trend(_contexts)
+	use_cci(_contexts)
 
 	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
 	use_candle(_contexts)

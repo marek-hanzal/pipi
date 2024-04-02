@@ -8,6 +8,8 @@ It may be used only as buy/sell indicator using your own rules, or fully-fledged
 
 The name - don't ask me, _even I don't know_ - it's just short and **I like it**.
 
+> For quick reference, use [cheat.md](cheat.md) file.
+
 ## The Reason
 
 Yes, this system integrates some commonly used indicators, but main difference is in the way, how it works: you're targeting individual candlestick patterns and executing actions on them. The idea was to convert human's behavior into the code for consistant results in trading.

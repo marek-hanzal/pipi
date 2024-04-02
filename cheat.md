@@ -146,3 +146,22 @@ Both fast and slow are useful to confirm each other's "real" trend.
 - `b:super-trend.slow.down.end`        - slow trend has ended (one time flag)
 - `b:super-trend.up`                   - both fast and slow are uptrend
 - `b:super-trend.down`                 - both fast and slow are downtrend
+
+## CCI
+
+Commodity Channel Index, default TradingView implementation.
+
+**Context**: `cci`
+
+**Config:**
+- `s:#.cci.length`            - length (int)
+
+**Flags:**
+- `b:cci.below.enter`         - Signal exits (> -100)
+- `b:cci.below.exit`          - Signal enters (< -100)
+- `b:cci.above.enter`         - Signal exits (> 100)
+- `b:cci.above.exit`          - Signal enters (< 100)
+- `b:cci.zone`                - Signal is in zone (>= -100, <= 100)
+
+**Values:**
+- `b:cci.signal`              - CCI value

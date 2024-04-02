@@ -123,3 +123,25 @@ pattern
 		long
 	;
 ;
+
+pattern
+	candle
+		flag	b.candle.s.day-fibbonachi.20.body-over
+	;
+
+	candle
+		flag	b:candle.red
+		flag	b:macd.short
+		flag	b:super-trend.fast.down
+	;
+
+	action
+		set
+			flag	b:#.sell
+		;
+
+		profit	b:candle.low	-	s:day.size(0.15)
+		loss	b:candle.high	+	s:day.size(0.25)
+		short
+	;
+;

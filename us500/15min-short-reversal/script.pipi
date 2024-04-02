@@ -4,12 +4,35 @@ init
 		flag	s:#.session.exclusive	true
 
 		value	s:#.factor				0.3
+
+		value	s:#.cci.length			20
 	;
 ;
 
 pattern
-	!strict
+	candle
+		flag	b:candle.green
+		flag	b:cci.below.exit
+	;
 
+	candle
+		flag	b:candle.green
+		value	b:candle.low	>	s:day-fibbonachi.100.high
+		flag	b:candle.s.day-fibbonachi.70.wicks-over
+	;
+
+	action
+		set
+			flag	b:#.buy		true
+		;
+
+		profit				s:day-fibbonachi.30.high
+		loss				s:day-fibbonachi.100.low
+		long
+	;
+;
+
+pattern
 	candle
 		flag	b:candle.red
 		value	b:candle.low	<	s:day-fibbonachi.100.high

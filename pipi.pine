@@ -1,0 +1,1325 @@
+//@version=5
+strategy("PiPi v0.5.0", overlay = true, default_qty_value = 0.5, currency = currency.USD, pyramiding = 1, process_orders_on_close = false, initial_capital = 1000, max_lines_count = 500, max_bars_back = 4900, max_boxes_count = 500, max_labels_count = 500, calc_on_order_fills = false)
+
+import TradingView/ta/7 as ta7
+
+//  ====================================================================================================================================================
+//      Intro
+//			So welcome here. You will *not* believe what you see here as this is not like any other indicator you may know. It's a more like a system,
+//			using it's own "description" language.
+//
+//			How it works:
+//			-	You write PiPi Script, which says, what are you searching for (candlestick patterns, indicator match and so on)
+//			-	You specify, what you want to do - for example only mark trends, put buy/sell indicator or execute trade using TradingView strategy
+//			-	The script itself describes one strategy, including different patterns
+//			-	You can simply switch to another strategy, just replacing the script; it contains setup for all indicators
+//			-	A lot of common stuff is included (MACD, EMA, SuperTrend, ...)
+//			-	And if you want more, it's incredibly simple to extend the language or add your own indicator you've found elsewhere
+//			-	Bonus? Safe different versions of strategy or just simply share one
+//			-	Another bonus? Timeframe? Doesn't matter, it's up to you, how you setup the indicator
+//
+//		Notes:
+//			-	This (afaik) is quite unique indicator
+//			-	It can be broken to small pieces, scattered in small libraries, but I've decided to keep all the stuff together, so you can see
+//				how all the stuff works
+//			-	There are plenty of indicators, some defaults from TradingView, some stolen from others; I've credited them and I hope they won't be
+//				angry on me; if there is a problem, it's simple to remove that piece
+//			-	You can freely do whatever you want with this piece of software (you - and me included - have to only respect Licence of used
+//				indicators)
+//			-	Most important thing: This system tries to reproduce what you, as a human, are searching for - you've some rules you follow, so the
+//				indicator do the same for unbiased (emotion-less) results you can test. As opposite to other indicators, which uses *you* as the engine
+//				powering trading decisions, here the engine is this system, which behaves predictably, all the times same way.
+//
+//  ====================================================================================================================================================
+
+//  ====================================================================================================================================================
+//      Inputs
+//			All the inputs needed by this indicator.
+//  ====================================================================================================================================================
+
+const string	_script_hint	=	"TODO: Bla bla"
+var	string		i_script		=	input.text_area("", "Script",	display = display.none,	tooltip = _script_hint)
+
+//  ====================================================================================================================================================
+//      Functions
+//			Various functions not tight to this indicator (kind of a "library" code).
+//  ====================================================================================================================================================
+
+//	@function	Because "var" objects (and somehow arrays) cannot be created by one step on declaration with default values, this hack enables to check for the method init state to fill those vars
+use_init() =>
+	var bool	init	= true
+	bool		_init	= init
+	init:=	false
+
+	_init
+
+//  ====================================================================================================================================================
+//      Types
+//			All types used in this indicator
+//  ====================================================================================================================================================
+
+//	@type			This is a level; because trading is not about exact numbers, Level is represented by a range (low and high); for a single line both can be the same value
+//	@field	name	Level name used to programatically identify it's kind
+//	@field	low		Level low value; for single value levels, both should be same
+//	@field	high	Level high value; for single value levels, both should be same
+//	@field	level	Level middle value
+//	@field	size	Absolute diff between low and high
+type Level
+	string	name
+	float	low
+	float	high
+	float	level
+	float	size
+
+//	@type			Value represents PineScript's type accessible from PiPi Script; usually only one value should be set
+//	@field	name	Represents any string value
+//	@field	flag	Represents true/false state, for example uptrend, crossings or whatever
+//	@field	value	Could be any static or computed value, for example day's price range
+//	@field	level	Represents a level; could be a single number or (usually) a range
+type Value
+	string	name
+	bool	flag
+	float	value
+	Level	level
+
+//	@type			Most important piece of this indicator - there are providers of a context, each managing it's internal state; Context is also used as a communication interface between providers and PiPi Script
+//	@field	name	Name of a context, referenced from PiPi Script and providers
+//	@field	bar		Values preserved only on the current bar
+//	@field	state	Values preserved globally
+type Context
+	string					name
+	map<string, Value>		bar
+	map<string, Value>		state
+
+//	@type			Just simple wrapper, so we can add contexts to an array
+type Contexts
+	map<string, Context>	map
+
+//	@type			Set value instruction
+//	@field	target	Name/value/flag
+//	@field	key		Exactly 3 pieces: [state/bar], [context name], [value name]
+//	@field	value	Exactly 1 piece: [value itself] or exactly 3 pieces [state/bar], [context name], [value name]
+type SetValue
+	string				target
+	string[]			key
+	string[]			value
+
+//	@type				Holds simple math equation
+//	@field	left		West side
+//	@field	operator	What to do
+//	@field	righ		East side
+type Math
+	string[]			left
+	string				operator
+	string[]			right
+
+//	@type				Startup part of the script
+//	@field	set_value	Those values will be set into the context(s)
+type Init
+	SetValue[]			set_value
+
+//	@type				Candle rule to match exactly one value/state/whatever
+//	@field	target		Name/flag/value
+//	@field	key			Where to get left side of the check; may be 1 (single value) or 3 (context access) pieces
+//	@field	operator	What to say...
+//	@field	value		Where to get right side of the check; may be 1 (single value) or 3 (context access) pieces
+type Rule
+	string				target
+	string[]			key
+	string				operator
+	string[]			value
+
+//	@type				Rules on a single Candle
+//	@field	rule		Rules to check
+type Candle
+	Rule[]				rule
+
+//	@type				When a pattern matches, execute an action
+//	@field	set_value	Set values
+//	@field	profit		Set profit (does not execute a trade)
+//	@field	loss		Set loss (does not execute a trade)
+//	@field	order		> 0, long, < 0 short, everything else - nothing
+type Action
+	SetValue[]			set_value
+	Math				profit
+	Math				loss
+	int					order
+
+//	@type				Pattern used to match multiple candles
+//	@field	strict		Strict means all candles must be next to each other; non-strict - pattern is checked on the fly, last matching candle commits true
+//	@field	enabled		Feature for the user to enable/disable pattern when trying different appraches
+//	@field	candle		Array of candle rules
+//	@field	action		Action being taken when pattern is matched
+type Pattern
+	bool				strict
+	bool				enabled
+	Candle[]			candle
+	Action				action
+
+//	@type				All the candle matching stuff
+//	@field	init		Startup part of script; should be called *exactly* once
+//	@field	pattern		Patterns used to match candles
+type Script
+	Init				init
+	Pattern[]			pattern
+
+//	@type				This is a result from the main indicator fucntion
+//	@field	contexts	All the contexts produced by the indicator
+type Result
+	Contexts				contexts
+
+//  ====================================================================================================================================================
+//      Level
+//  ====================================================================================================================================================
+
+level_create(string name, float low, float high)	=>	Level.new(name, low, high, (high - low) / 2, math.abs(high - low))
+level(string name, float level, float factor)		=>	level_create(name, level - factor, level + factor)
+level(Level level)									=>	na(level) ? level_create("na", na, na) : level
+
+level_low(Level level, float low) =>
+	if not na(level)
+		level.low	:=	low
+		level.level	:=	(level.high + level.low) / 2
+		level.size	:=	math.abs(level.low - level.high)
+
+level_high(Level level, float high) =>
+	if not na(level)
+		level.high	:=	high
+		level.level	:=	(level.high + level.low) / 2
+		level.size	:=	math.abs(level.low - level.high)
+
+level_update(Level level, float low, float high) =>
+	level_low(level, low)
+	level_high(level, high)
+
+level_push(map<string, Level> levels, Level level) =>
+	if not na(levels)
+		levels.put(level.name, level)
+
+level_push(map<string, Level> levels, string name, float level, float factor) =>
+	level_push(levels, level(name, level, factor))
+
+//  ====================================================================================================================================================
+//      Value
+//  ====================================================================================================================================================
+
+value(string name)					=>	Value.new(name, na, na, na)
+value(bool flag)					=>	Value.new(na, flag, na, na)
+value(float value)					=>	Value.new(na, na, value, na)
+value(Level level)					=>	Value.new(na, na, na, level)
+value(Value value, Value default)	=>	na(value) ? default : value
+
+value_copy(Value value) =>
+	if not na(value.level)
+		value(value.level.copy())
+	else
+		value.copy()
+
+//  ====================================================================================================================================================
+//      Context
+//  ====================================================================================================================================================
+
+//	@function	Create a new empty context ready to use
+context_create(string name)					=>	Context.new(name, map.new<string, Value>(), map.new<string, Value>())
+
+contexts_create()							=>	Contexts.new(map.new<string, Context>())
+
+//	@function	Shortcut for getting context or default context
+context(Context context, Context default)	=>	na(context) ? default : context
+
+//	@function	Because contexts must live in "var" scope, some stuff must be cleaned up per-bar
+context_tick(Contexts contexts) =>
+	for [_, _context] in contexts.map
+		_context.bar.clear()
+
+//	@function	What to say - deep copy of the Context, ensuring everything is properly cloned. Yaay!
+context_copy(Context context) =>
+	Context _context = context_create(context.name)
+
+	for [_k, _v] in context.bar
+		_context.bar.put(_k, value_copy(_v))
+
+	for [_k, _v] in context.state
+		_context.state.put(_k, value_copy(_v))
+
+	_context
+
+contexts_copy(Contexts contexts) =>
+	Contexts _contexts = contexts_create()
+
+	for [__name, __context] in contexts.map
+		_contexts.map.put(__name, context_copy(__context))
+
+	_contexts
+
+//	@function	Add a context to the map; this is basically only shortcut
+use_context(Contexts contexts, Context context)	=>
+	contexts.map.put(context.name, context)
+	context
+
+contexts_context(Contexts contexts, string context) =>
+	_context = contexts.map.contains(context) ? contexts.map.get(context) : context_create(context)
+	contexts.map.put(context, _context)
+	_context
+
+//  ====================================================================================================================================================
+//      Context - Bar value creation (mutations)
+//  ====================================================================================================================================================
+
+context_bar(Context context, string name, Value value)	=>	context.bar.put(name, value)
+context_bar(Context context, string name, string value)	=>	context_bar(context, name, value(value))
+context_bar(Context context, string name, bool value)	=>	context_bar(context, name, value(value))
+context_bar(Context context, string name, float value)	=>	context_bar(context, name, value(value))
+context_bar(Context context, string name, Level value)	=>	context_bar(context, name, value(value))
+
+context_bar(Context context, map<string, Level> levels) =>
+	for [_name, _level] in levels
+		context_bar(context, _name, _level)
+
+//	@function	Get a value from "bar"; default is created and written to context, if not present
+context_bar_default(Context context, string name, Value default) =>
+	_value		=	context.bar.get(name)
+	if na(_value)
+		_value:= context_bar(context, name, default)
+	_value
+
+//  ====================================================================================================================================================
+//      Context - Bar - Access (non-mutable)
+//  ====================================================================================================================================================
+
+context_bar_name(Context context, string name, string default = na)	=>	value(context.bar.get(name), value(default)).name
+context_bar_flag(Context context, string name, bool default = na)	=>	value(context.bar.get(name), value(default)).flag
+context_bar_value(Context context, string name, float default = na)	=>	value(context.bar.get(name), value(default)).value
+context_bar_level(Context context, string name, Level default = na)	=>	value(context.bar.get(name), value(level(default))).level
+
+//  ====================================================================================================================================================
+//      Context Map - Bar - Access (non-mutable)
+//  ====================================================================================================================================================
+
+contexts_bar(Contexts contexts, string context, string name, string value) =>
+	context_bar(contexts_context(contexts, context), name, value)
+
+contexts_bar(Contexts contexts, string context, string name, float value) =>
+	context_bar(contexts_context(contexts, context), name, value)
+
+contexts_bar(Contexts contexts, string context, string name, bool value) =>
+	context_bar(contexts_context(contexts, context), name, value)
+
+contexts_bar(Contexts contexts, string context, string name, Level value) =>
+	context_bar(contexts_context(contexts, context), name, value)
+
+//	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
+contexts_bar_name(Contexts contexts, string context, string name, string default = na) =>
+	context_bar_name(context(contexts.map.get(context), context_create(context)), name, default)
+
+//	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
+contexts_bar_flag(Contexts contexts, string context, string name, bool default = na) =>
+	context_bar_flag(context(contexts.map.get(context), context_create(context)), name, default)
+
+//	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
+contexts_bar_value(Contexts contexts, string context, string name, float default = na) =>
+	context_bar_value(context(contexts.map.get(context), context_create(context)), name, default)
+
+//	@function	Get a level from context; if not present, Level(na, na) is returned (context is not modified)
+contexts_bar_level(Contexts contexts, string context, string name, Level default = na) =>
+	context_bar_level(context(contexts.map.get(context), context_create(context)), name, default)
+
+//  ====================================================================================================================================================
+//      Context - State value creation (mutations)
+//  ====================================================================================================================================================
+
+context_state(Context context, string name, Value value) =>
+	context.state.put(name, value)
+	value
+
+context_state(Context context, string name, string value)	=>	context_state(context, name, value(value))
+context_state(Context context, string name, bool value)		=>	context_state(context, name, value(value))
+context_state(Context context, string name, float value)	=>	context_state(context, name, value(value))
+context_state(Context context, string name, Level value)	=>	context_state(context, name, value(value))
+
+context_state(Context context, map<string, Level> levels) =>
+	for [_name, _level] in levels
+		context_state(context, _name, _level)
+
+context_levels(Context context, Contexts contexts, map<string, Level> levels) =>
+	context_state(context, levels)
+	
+	for [__name, __level] in levels
+		context_state(context, __name + ".low",		__level.low)
+		context_state(context, __name + ".high",	__level.high)
+		context_state(context, __name + ".level",	__level.level)
+		context_state(context, __name + ".size",	__level.size)
+
+//	@function	Get a value from context; write and return default if not present
+context_state_default(Context context, string name, Value default) =>
+	_value		=	context.state.get(name)
+	if na(_value)
+		_value:= context_state(context, name, default)
+	_value
+
+//  ====================================================================================================================================================
+//      Context - State - Access (non-mutable)
+//  ====================================================================================================================================================
+
+context_state_name(Context context, string name, string default = na)		=>	value(context.state.get(name), value(default)).name
+context_state_flag(Context context, string name, bool default = na)			=>	value(context.state.get(name), value(default)).flag
+context_state_value(Context context, string name, float default = na)		=>	value(context.state.get(name), value(default)).value
+context_state_level(Context context, string name, Level default = na)		=>	value(context.state.get(name), value(level(default))).level
+
+//  ====================================================================================================================================================
+//      Context - State - Access (mutable with defaults)
+//  ====================================================================================================================================================
+
+//	@function	Get a value from context; if not present, default is added to context and returned
+context_state_default(Context context, string name, string value)			=>	context_state_default(context, name, value(value)).name
+context_state_default(Context context, string name, bool value)				=>	context_state_default(context, name, value(value)).flag
+context_state_default(Context context, string name, float value)			=>	context_state_default(context, name, value(value)).value
+context_state_default(Context context, string name, float low, float high)	=>	context_state_default(context, name, value(level_create(name, low, high))).level
+
+//  ====================================================================================================================================================
+//      Context Map - State - Access (non-mutable)
+//  ====================================================================================================================================================
+
+contexts_state(Contexts contexts, string context, string name, string value) =>
+	context_state(contexts_context(contexts, context), name, value)
+
+contexts_state(Contexts contexts, string context, string name, float value) =>
+	context_state(contexts_context(contexts, context), name, value)
+
+contexts_state(Contexts contexts, string context, string name, bool value) =>
+	context_state(contexts_context(contexts, context), name, value)
+
+contexts_state(Contexts contexts, string context, string name, Level value) =>
+	context_state(contexts_context(contexts, context), name, value)
+
+//	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
+contexts_state_name(Contexts contexts, string context, string name, string default = na) =>
+	context_state_name(context(contexts.map.get(context), context_create(context)), name, default)
+
+//	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
+contexts_state_flag(Contexts contexts, string context, string name, bool default = na) =>
+	context_state_flag(context(contexts.map.get(context), context_create(context)), name, default)
+
+//	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
+contexts_state_value(Contexts contexts, string context, string name, float default = na) =>
+	context_state_value(context(contexts.map.get(context), context_create(context)), name, default)
+
+//	@function	Get a level from context; if not present, Level(na, na) is returned (context is not modified)
+contexts_state_level(Contexts contexts, string context, string name, Level default = na) =>
+	context_state_level(context(contexts.map.get(context), context_create(context)), name, default)
+
+//  ====================================================================================================================================================
+//      Combined bar/state wrties
+//  ====================================================================================================================================================
+
+contexts(Contexts contexts, string scope, string context, string name, string value) =>
+	_context = contexts_context(contexts, context)
+	scope == "state" ? context_state(_context, name, value) : context_bar(_context, name, value)
+
+contexts(Contexts contexts, string scope, string context, string name, float value) =>
+	_context = contexts_context(contexts, context)
+	scope == "state" ? context_state(_context, name, value) : context_bar(_context, name, value)
+
+contexts(Contexts contexts, string scope, string context, string name, bool value) =>
+	_context = contexts_context(contexts, context)
+	scope == "state" ? context_state(_context, name, value) : context_bar(_context, name, value)
+
+contexts(Contexts contexts, string scope, string context, string name, Level value) =>
+	_context = contexts_context(contexts, context)
+	scope == "state" ? context_state(_context, name, value) : context_bar(_context, name, value)
+
+//  ====================================================================================================================================================
+//      Combined bar/state access
+//  ====================================================================================================================================================
+
+contexts_name(Contexts contexts, string scope, string context, string name, string default = na) =>
+	_context = context(contexts.map.get(context), context_create(context))
+	scope == "state" ? context_state_name(_context, name, default) : context_bar_name(_context, name, default)
+
+contexts_flag(Contexts contexts, string scope, string context, string name, bool default = na) =>
+	_context = context(contexts.map.get(context), context_create(context))
+	scope == "state" ? context_state_flag(_context, name, default) : context_bar_flag(_context, name, default)
+
+contexts_value(Contexts contexts, string scope, string context, string name, float default = na) =>
+	_context = context(contexts.map.get(context), context_create(context))
+	scope == "state" ? context_state_value(_context, name, default) : context_bar_value(_context, name, default)
+
+contexts_level(Contexts contexts, string scope, string context, string name, Level default = na) =>
+	_context = context(contexts.map.get(context), context_create(context))
+	scope == "state" ? context_state_level(_context, name, default) : context_bar_level(_context, name, default)
+
+//  ====================================================================================================================================================
+//      Combined bar/state access
+//  ====================================================================================================================================================
+
+context_name(Context context, string scope, string name, string default = na)		=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(default)).name
+context_flag(Context context, string scope, string name, bool default = na)			=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(default)).flag
+context_value(Context context, string scope, string name, float default = na)		=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(default)).value
+context_level(Context context, string scope, string name, Level default = na)		=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(level(default))).level
+
+//  ====================================================================================================================================================
+//      Independent Fibbonachi levels from the input Level's high/low
+//  ====================================================================================================================================================
+
+//	@function	What to expect; computes some Fibbonachi numbers and returns a map with keys as "primary" levels (78.6 -> 70, 38.2 -> 30 and so on; values are real)
+fibbonachi(Level level, float factor = 0) =>
+	_diff 		= math.abs(level.high - level.low)
+	_base		= level.high
+	_fibb		= map.new<string, Level>()
+
+	level_push(_fibb, "0", 		_base - (_diff * 0.000), factor)
+	level_push(_fibb, "20",		_base - (_diff * 0.236), factor)
+	level_push(_fibb, "30",		_base - (_diff * 0.382), factor)
+	level_push(_fibb, "50",		_base - (_diff * 0.500), factor)
+	level_push(_fibb, "60",		_base - (_diff * 0.618), factor)
+	level_push(_fibb, "70",		_base - (_diff * 0.786), factor)
+	level_push(_fibb, "100",	_base - (_diff * 1.000), factor)
+
+	_fibb
+
+//  ====================================================================================================================================================
+//      Value resolvers
+//  ====================================================================================================================================================
+
+value_of(string[] value, Contexts contexts) =>
+	switch value.size()
+		1 => 
+			str.tonumber(value.get(0))
+		
+		3 =>
+			contexts_value(contexts, value.get(0), value.get(1), value.get(2))
+
+		4 =>
+			contexts_value(contexts, value.get(0), value.get(1), value.get(2)) * str.tonumber(value.get(3))
+
+flag_of(string[] value, Contexts contexts) =>
+	switch value.size()
+		1 => 
+			switch value.get(0)
+				"true"	=> true
+				"false"	=> false
+				=> na
+		
+		3 =>
+			contexts_flag(contexts, value.get(0), value.get(1), value.get(2))
+
+name_of(string[] value, Contexts contexts) =>
+	switch value.size()
+		1 => 
+			value.get(0)
+		
+		3 =>
+			contexts_name(contexts, value.get(0), value.get(1), value.get(2))
+
+//  ====================================================================================================================================================
+//      Simple math support
+//  ====================================================================================================================================================
+
+math(Math value, Contexts contexts) =>
+	_left	=	value_of(value.left,	contexts) 
+	_right	=	value_of(value.right,	contexts)
+
+	if na(_right)
+		_left
+	else
+		switch value.operator
+			"+" => _left + _right
+			"-" => _left - _right
+			"*" => _left * _right
+			"/" => _left / _right
+			=> na
+
+//  ====================================================================================================================================================
+//      Candle matching
+//  ====================================================================================================================================================
+
+candle_match(Contexts contexts, Rule rule) =>
+	switch rule.target
+		"flag"	=>
+			_left	=	flag_of(rule.key, contexts)
+			_right	=	flag_of(rule.value, contexts)
+
+			_left	==	_right
+
+		"value"	=>
+			_left	=	value_of(rule.key,		contexts)
+			_right	=	value_of(rule.value, 	contexts)
+
+			switch rule.operator
+				">"		=> _left >	_right
+				">="	=> _left >= _right
+				"<"		=> _left <	_right
+				"<="	=> _left <=	_right
+				"=="	=> _left ==	_right
+				"!="	=> _left !=	_right
+
+		=> true
+
+candle_match(Contexts contexts, Candle candle) =>
+	bool _result = true
+
+	for __rule in candle.rule
+		if not candle_match(contexts, __rule)
+			_result:= false
+			break
+
+	_result
+
+//	@function	This is strict pattern matching, meaning all matched candles must be in the row without interrputing
+pattern_strict(Pattern pattern, array<Contexts> candles) =>
+	bool	_result			=	false
+	int		_rules_size		=	pattern.candle.size()	
+	int		_candles_size	=	candles.size()
+
+	//	If there are more rules than candles, there could be no match
+	if _rules_size <= _candles_size
+		_rule = 0
+		//	Let's rock through latest candles in the length of matching rules
+		for i = _candles_size - _rules_size to _candles_size - 1
+			// Check if a pattern matches; if not, break and return false
+			_result	:=	candle_match(candles.get(i), pattern.candle.get(_rule))
+			_rule 	+=	1
+			if not _result
+				break
+
+	_result
+
+//	@function	Non-strict pattern matching searches for patterns continually; that means it could match during candles, not necessarily in the row
+pattern_non_strict(Pattern pattern, array<Contexts> candles) =>
+	bool	_result			=	false
+	int		_rules_size		=	pattern.candle.size()	
+	int		_candles_size	=	candles.size()
+
+	//	If there are more rules than candles, there could be no match
+	if _rules_size <= _candles_size
+		_rule = 0
+
+		//	Run through all candles, searching for the pattern
+		for __context in candles
+			//	This is a trick:
+			//		-	We've buffer of candles
+			//		-	When we're out of rules (meaning all are matched), but there are still candles remaning...
+			//			...it's necessary to start checking again to ensure the pattern is true on the last checked candle
+			if _rule >= pattern.candle.size()
+				_rule:=		0
+
+			//	Move to the next rule, if candle matches it's rules; without it we're still searching for matching candle
+			if candle_match(__context, pattern.candle.get(_rule))
+				_rule+=		1
+
+		//	For success, we must have all rules matched, meaning matched count should be same as the number of tested candles
+		_result:=	_rule	==	pattern.candle.size()
+
+	_result
+
+//	@function	Gateeway function, which resolves if pattern is strict or non-strict; nothing interesting here
+pattern(Pattern pattern, array<Contexts> candles) =>
+	pattern.strict ? pattern_strict(pattern, candles) : pattern_non_strict(pattern, candles)
+
+//  ====================================================================================================================================================
+//      Context value mutation
+//  ====================================================================================================================================================
+
+contexts_values(Contexts contexts, SetValue[] set) =>
+	//	Run through all values we're about to set
+	for _set in set
+		//	Key must have exactly 3 elements: scope, context and value
+		if _set.key.size() != 3
+			continue
+
+		//	Resolve type we're setting; this code looks ugly (and I don't like it), but PineScript's type
+		//	system does not allow any shortcuts here.
+		//
+		//	In short: same methods, but different types.
+		//
+		//	When value resolver returns "na", it's ignored as an unknown value
+		switch _set.target
+			"flag" =>
+				_value = flag_of(_set.value, contexts)
+
+				if not na(_value)
+					contexts(contexts, _set.key.get(0), _set.key.get(1), _set.key.get(2), _value)
+
+			"name" =>
+				_value = name_of(_set.value, contexts)
+
+				if not na(_value)
+					contexts(contexts, _set.key.get(0), _set.key.get(1), _set.key.get(2), _value)
+
+			"value" =>
+				_value = value_of(_set.value, contexts)
+
+				if not na(_value)
+					contexts(contexts, _set.key.get(0), _set.key.get(1), _set.key.get(2), _value)
+
+//  ====================================================================================================================================================
+//		Factory methods for Script types
+//  ====================================================================================================================================================
+
+candle_create() =>
+	Candle.new(array.new<Rule>())
+
+math_create() =>
+	Math.new(array.new<string>(), na, array.new<string>())
+
+math_create(string[] left) =>
+	Math.new(left, na, array.new<string>())
+
+math_create(string[] left, string operator, string[] right) =>
+	Math.new(left, operator, right)
+
+action_create() =>
+	Action.new(array.new<SetValue>(), na, na, 0)
+
+pattern_create() =>
+	Pattern.new(false, true, array.new<Candle>(), action_create())
+
+script_create() =>
+	Script.new(Init.new(array.new<SetValue>()), array.new<Pattern>())
+
+//  ====================================================================================================================================================
+//      Parser
+//			Most interesting part of this indicator: takes a script as input (strategy) and executes it
+//  ====================================================================================================================================================
+
+//  ====================================================================================================================================================
+//      Individual parsers
+//  ====================================================================================================================================================
+
+parse_key(string line) =>
+	string[]	_key = array.from(line)
+
+	if not na(str.match(line, "^[sb]:([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
+		_scope		=	str.startswith(line, "s:") ? "state" :	"bar"
+		_context	=	str.substring(line, 2, str.pos(line, "."))
+		_name		=	str.substring(line, str.pos(line, ".") + 1)
+		_key		:=	array.from(_scope, _context, _name)
+
+	_key
+
+parse_math_value(string line) =>
+	string[]	_key = array.from(line)
+
+	if not na(str.match(line, "^[sb]:([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
+		_scope		=	str.startswith(line, "s:") ? "state" :	"bar"
+		_context	=	str.substring(line, 2, str.pos(line, "."))
+		_name		=	str.substring(line, str.pos(line, ".") + 1)
+		_key		:=	array.from(_scope, _context, _name, "1")
+	else if not na(str.match(line, "^[sb]:([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
+		_scope		=	str.startswith(line, "s:") ? "state" :	"bar"
+		_context	=	str.substring(line, 2, str.pos(line, "."))
+		_name		=	str.substring(line, str.pos(line, ".") + 1, str.pos(line, "("))
+		_key		:=	array.from(_scope, _context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
+
+	_key
+
+parse_init(string[] stack, string line) =>
+	switch line
+		"set" =>
+			stack.push("parse_set")
+
+parse_set(string line, SetValue[] set_value) =>
+	_set = str.split(line, "\t")
+	if _set.size() == 3
+		set_value.push(SetValue.new(_set.get(0), parse_key(_set.get(1)), parse_key(_set.get(2))))
+
+parse_pattern(string[] stack, string line, Pattern pattern) =>
+	switch line
+		"strict"	=> pattern.strict:=		true
+		"!strict"	=> pattern.strict:=		false
+		"disabled"	=> pattern.enabled:=	false
+		"candle"	=>
+			stack.push("parse_pattern_candle")
+
+		"action"	=>
+			stack.push("parse_action")
+
+	pattern
+
+parse_pattern_candle_flag(string[] rule, bool flag, Candle candle) =>
+	_key = parse_key(rule.get(0))
+	if _key.size() == 3
+		candle.rule.push(Rule.new("flag", _key, "=", array.from(flag ? "true" : "false")))
+
+parse_pattern_candle_value(string[] rule, Candle candle) =>
+	_key = parse_key(rule.get(0))
+	if _key.size() == 3 and rule.size() == 3
+		candle.rule.push(Rule.new("value", _key, rule.get(1), parse_key(rule.get(2))))
+
+parse_pattern_candle(string line, Candle candle) =>
+	_rule = str.split(line, "\t")
+	switch _rule.get(0)
+		"flag" => 
+			_rule.shift()
+			parse_pattern_candle_flag(_rule, true, candle)
+
+		"!flag" => 
+			_rule.shift()
+			parse_pattern_candle_flag(_rule, false, candle)
+
+		"value" => 
+			_rule.shift()
+			parse_pattern_candle_value(_rule, candle)
+
+	candle
+
+parse_action_profit_loss(string[] source, Action action) =>
+	_type = source.shift()
+
+	switch source.size()
+		1 => 
+			_value	=	parse_math_value(source.get(0))
+			switch _type
+				"profit"	=>	action.profit	:=	math_create(_value)
+				"loss"		=>	action.loss		:=	math_create(_value)
+		3 =>
+			_left		=	parse_math_value(source.get(0))
+			_operator	=	source.get(1)
+			_right		=	parse_math_value(source.get(2))
+			switch _type
+				"profit"	=>	action.profit	:=	math_create(_left, _operator, _right)
+				"loss"		=>	action.loss		:=	math_create(_left, _operator, _right)
+
+	action
+
+parse_action(string[] stack, string line, Action action) =>
+	_action	=	str.split(line, "\t")
+
+	switch _action.get(0)
+		"set"				=>	stack.push("parse_set")
+		"profit"			=>	parse_action_profit_loss(_action, action)
+		"loss"				=>	parse_action_profit_loss(_action, action)
+		"long"				=>	action.order	:=	1
+		"short"				=>	action.order	:=	-1
+
+	action
+
+parse(string script) =>
+	string[]		_source		=	str.split(str.trim(script), "\n")
+	string[]		_stack		=	array.new<string>()
+
+	Script			_script		=	script_create()
+	SetValue[]		_set_value	=	na
+	Action			_action		=	na
+	Pattern			_pattern	=	na
+	Candle			_candle		=	na
+
+	for _line in _source
+		_text = str.trim(_line)
+
+		if str.startswith(_text, '//')
+			continue
+
+		switch _text
+			"init" =>
+				_set_value:=	_script.init.set_value
+				_stack.push("parse_init")
+				continue
+
+			"pattern" =>
+				_pattern	:=	pattern_create()
+				_action		:=	_pattern.action
+				_script.pattern.push(_pattern)
+				_stack.push("parse_pattern")
+				continue
+
+			"candle" =>
+				_candle:=	candle_create()
+				_pattern.candle.push(_candle)
+
+			"action" =>
+				_set_value:=	_pattern.action.set_value
+
+			";"	=>
+				_stack.pop()
+				continue
+
+		if _stack.size() > 0
+			switch _stack.last()
+				"parse_init" =>
+					parse_init(_stack, _text)
+
+				"parse_set" =>
+					parse_set(_text, _set_value)
+
+				"parse_pattern" =>					
+					parse_pattern(_stack, _text, _pattern)
+
+				"parse_pattern_candle" =>
+					parse_pattern_candle(_text, _candle)
+
+				"parse_action" =>
+					parse_action(_stack, _text, _action)
+
+	log.info("=== Init")
+
+	for _v in _script.init.set_value
+		log.info("- set value [{0}] -> {1} {2}", _v.target, _v.key, _v.value)
+
+	for __pattern in _script.pattern
+		log.info("=== Pattern [{0}]", __pattern.strict ? "strict" : "non-strict")
+
+		for __candle in __pattern.candle
+			log.info("== Candle")
+			for __rule in __candle.rule
+				log.info("- Rule [{0}] {1} {2} {3}", __rule.target, __rule.key, __rule.operator, __rule.value)
+
+		log.info("== Action")
+		for _v in __pattern.action.set_value
+			log.info("- Set value [{0}] -> {1} {2}", _v.target, _v.key, _v.value)
+
+		if not na(__pattern.action.profit)
+			log.info("- Profit: {0} [{1}] {2}", __pattern.action.profit.left, __pattern.action.profit.operator, __pattern.action.profit.right)
+
+		if not na(__pattern.action.loss)
+			log.info("- Loss: {0} [{1}] {2}", __pattern.action.loss.left, __pattern.action.loss.operator, __pattern.action.loss.right)
+
+		if __pattern.action.order > 0
+			log.info("-	Long")
+
+		if __pattern.action.order < 0
+			log.info("-	Short")
+
+	_script
+
+//  ====================================================================================================================================================
+//      Action related stuff
+//  ====================================================================================================================================================
+
+action_trade(Action action, Contexts contexts) =>
+	var box	_box	=	na
+
+	if action.order != 0
+		_is_session	=	contexts_bar_flag(contexts, "session", "open", true)
+		_profit		=	math(action.profit,	contexts)
+		_loss		=	math(action.loss,	contexts)
+
+		if _is_session and not bool(strategy.position_size)
+			_entry = false
+			if action.order > 0
+				_entry:= true
+				strategy.entry("long", direction = strategy.long)
+				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = "Long: SL", comment_profit = "Long: TP")    
+			else if action.order < 0
+				_entry:= true
+				strategy.entry("short", direction = strategy.short)
+				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = "Short: SL", comment_profit = "Short: TP")  
+
+			if _entry
+				contexts_state(contexts, "#", "order",	action.order)
+				contexts_state(contexts, "#", "profit",	_profit)
+				contexts_state(contexts, "#", "loss",	_loss)
+
+action(Action action, Contexts contexts) =>
+	contexts_values(contexts, action.set_value)
+	action_trade(action, contexts)
+
+//  ====================================================================================================================================================
+//      Trading management stuff
+//  ====================================================================================================================================================
+
+trader(Contexts contexts) =>
+	if strategy.closedtrades > strategy.closedtrades[1]
+		contexts_state(contexts, "#", "profit",	na)
+		contexts_state(contexts, "#", "loss",	na)
+		contexts_state(contexts, "#", "order",	0)
+
+//  ====================================================================================================================================================
+//      Script Execution stuff
+//  ====================================================================================================================================================
+
+script_init(Script script, Contexts contexts) =>
+	contexts_values(contexts, script.init.set_value)
+
+script(Script script, array<Contexts> candles, Contexts contexts) =>
+	Pattern _pattern = na
+
+	for __pattern in script.pattern
+		if not __pattern.enabled
+			continue
+
+		if pattern(__pattern, candles)
+			_pattern:=	__pattern
+			break
+
+	if not na(_pattern)
+		action(_pattern.action, contexts)
+
+//  ====================================================================================================================================================
+//      Default global values
+//  ====================================================================================================================================================
+
+use_defaults() =>
+	var Context	_context	=	context_create("#")
+
+	if use_init()
+		context_state_default(_context, "factor", 0.3)
+
+	_context
+
+//  ====================================================================================================================================================
+//      Day-Low-High provider
+//  ====================================================================================================================================================
+
+//	@function	DRY, bro
+_use_day_low_high_factor(Contexts contexts, Level level) =>
+	(level.size * (contexts_state_value(contexts, "#", "factor") / 10)) / 2
+
+//	@function	Manages context of current Day Low/High and related events
+use_day_low_high(Contexts contexts) =>
+	var Context	_context	=	context_create("day")
+	Level		_level		=	context_state_default(_context, "level", low, high)
+
+	if use_init()
+		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
+
+	if bool(ta.change(time('D')))
+		level_update(_level, low, high)
+		context_bar(_context, "change", true)
+		context_bar(_context, "new-day", true)
+		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
+		context_state(_context, "size", _level.size)
+	else if low < _level.low
+		level_low(_level, low)
+		context_bar(_context, "change", true)
+		context_bar(_context, "higher-high", true)
+		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
+		context_state(_context, "size", _level.size)
+	else if high > _level.high
+		level_high(_level, high)
+		context_bar(_context, "change", true)
+		context_bar(_context, "lower-low", true)
+		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
+		context_state(_context, "size", _level.size)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      Day-Low-High Fibbonachi provider
+//  ====================================================================================================================================================
+
+//	@function	Listens for changes of Day Low/High and adjusts Fibbonachi levels accordingly
+use_day_fibbonachi(Contexts contexts) =>
+	var Context	_context	=	context_create("day-fibbonachi")
+
+	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
+	if use_init()
+		context_levels(_context, contexts, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
+
+	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
+	if contexts_bar_flag(contexts, "day", "change")
+		context_levels(_context, contexts, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      Candle analytics
+//  ====================================================================================================================================================
+
+_use_candle_level(Context context, string key, map<string, Value> values) =>
+	const string	_separator	=	"."
+
+	for [__name, __value] in values
+		if not na(__value.level)
+			_level	=	__value.level
+			_key	=	key + _separator + __name
+
+			//	--	Precomputed flags; a lot of stuff may be used by hand, it's just more talkative
+			context_bar(context, _key + _separator + "above",			open 	> _level.high 	and close 	> _level.high)
+			context_bar(context, _key + _separator + "below",			open 	< _level.low 	and close 	< _level.low)
+
+			context_bar(context, _key + _separator + "inside-open",		open 	>= _level.low 	and open 	<= _level.high)
+			context_bar(context, _key + _separator + "inside-high",		high 	>= _level.low 	and high 	<= _level.high)
+			context_bar(context, _key + _separator + "inside-low",		low 	>= _level.low 	and low 	<= _level.high)
+			context_bar(context, _key + _separator + "inside-close",	close 	>= _level.low 	and close 	<= _level.high)
+
+			context_bar(context, _key + _separator + "body-over",		math.min(open, close)	< _level.low 	and math.max(open, close) 	> _level.high)
+			context_bar(context, _key + _separator + "body-inside",		math.min(open, close)	> _level.low 	and math.max(open, close) 	< _level.high)
+			context_bar(context, _key + _separator + "wicks-over",		low						< _level.low 	and high 					> _level.high)
+
+//	@function	Most interesting provider: takes current candle and computes all the flags related to it, so it can be chacked for patterns later on
+use_candle(Contexts contexts) =>
+	var Context		_context	=	context_create("candle")
+	
+	_is_green	=	open	<= close
+	_is_red		=	open	> close
+	_low		=	math.min(open, close)
+	_high		=	math.max(open, close)
+	_body		=	_high - _low
+
+	context_bar(_context, "green",			_is_green)
+	context_bar(_context, "red",			_is_red)
+	context_bar(_context, "bull-engulfing",	_is_green	and	high	> high[1]	and (_body > _body[1]))
+	context_bar(_context, "bear-engulfing",	_is_red		and	low		> low[1]	and	(_body > _body[1]))
+
+	context_bar(_context, "open-gt-open",	open	> open[1])
+	context_bar(_context, "high-gt-high",	high	> high[1])
+	context_bar(_context, "low-gt-low",		low		> low[1])
+	context_bar(_context, "close-gt-close",	close	> close[1])
+
+	context_bar(_context, "open-lt-open",	open	< open[1])
+	context_bar(_context, "high-lt-high",	high	< high[1])
+	context_bar(_context, "low-lt-low",		low		< low[1])
+	context_bar(_context, "close-lt-close",	close	< close[1])
+
+	context_bar(_context, "open",			open)
+	context_bar(_context, "high",			high)
+	context_bar(_context, "low",			low)
+	context_bar(_context, "close",			close)
+	context_bar(_context, "size",			_body)
+
+	context_bar(_context, "bottom",			math.min(open, close))
+	context_bar(_context, "top",			math.max(open, close))
+
+	for [__name, __context] in contexts.map
+		_use_candle_level(_context, "s." + __name, __context.state)
+		_use_candle_level(_context, "b." + __name, __context.bar)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      Session range
+//  ====================================================================================================================================================
+
+use_session(Contexts contexts) =>
+	var Context		_context	=	context_create("session")
+	var string		_time		=	contexts_state_name(contexts, "#", "session.time",		"1000-2200")
+	var bool		_exclusive	=	contexts_state_flag(contexts, "#", "session.exclusive",	true)
+	bool			_is_session	=	_exclusive ? bool(time(timeframe.period, _time)) : true
+
+	context_bar(_context, "open", 		_is_session)
+	context_bar(_context, "is-open", 		_is_session and not _is_session[1])
+	context_bar(_context, "is-close", 	not	_is_session and		_is_session[1])
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      MACD support
+//  ====================================================================================================================================================
+
+use_macd_smma(float source, int length) =>
+	float smma = 0
+	sma = ta.sma(source, length)
+	smma:= na(smma[1]) ? sma : (smma[1] * (length - 1) + source) / length
+	smma
+
+use_macd_zlema(float source, int length) =>
+	ema1 = ta7.ema2(source, length)
+	ema1 + (ema1 - ta7.ema2(ema1, length))
+
+use_macd(Contexts contexts) =>
+	var Context		_context		=	context_create("macd")
+	var int			_length			=	int(contexts_state_value(	contexts, "#", "macd.length",		34))
+	var int			_signal_length	=	int(contexts_state_value(	contexts, "#", "macd.signal",		9))
+	var int			_impulse_length	=	int(contexts_state_value(	contexts, "#", "macd.impulse",		3))
+	var float		_dmz_factor		=	contexts_state_value(		contexts, "#", "macd.dmz",			6.6)
+	var float		_flat_factor	=	contexts_state_value(		contexts, "#", "macd.flat",			0.1)
+	
+	_high 		= use_macd_smma(	high, 	_length)
+	_low		= use_macd_smma(	low,	_length)
+	_middle		= use_macd_zlema(	hlc3,	_length) 
+
+	_macd 		= (_middle > _high) ? (_middle - _high) : (_middle < _low) ? (_middle - _low) : 0
+	_signal 	= ta.sma(_macd, _signal_length)
+	_histogram	= _macd - _signal
+
+	_trend 		= hlc3 > _middle ? hlc3 > _high ? 1 : 2 : hlc3 < _low ? -2 : -1
+	_dmz 		= (-1 * _dmz_factor) <= _macd and _macd <= _dmz_factor
+	_flat		= -1 * _flat_factor <= _signal and _signal <= _flat_factor and -1 * _flat_factor <= _histogram and _histogram <= _flat_factor
+
+	var _flat_count = 0
+	_flat_count:= _flat ? _flat_count + 1 : 0
+
+	_impulse	= not _flat and  _flat_count[1] >= _impulse_length
+
+	context_bar(_context, "dmz", 				_dmz)
+	context_bar(_context, "flat", 				_flat)
+
+	context_bar(_context, "up.low", 			_trend == 1)
+	context_bar(_context, "up.high", 			_trend == 2)
+
+	context_bar(_context, "down.low", 			_trend == -1)
+	context_bar(_context, "down.high", 			_trend == -2)
+
+	context_bar(_context, "up.impulse",			_impulse and _macd > 0)
+	context_bar(_context, "down.impulse",		_impulse and _macd < 0)
+
+	context_bar(_context, "long-dmz", 			_dmz and ta.crossover(_macd, _signal) and not _flat)
+	context_bar(_context, "long", 			not _dmz and ta.crossover(_macd, _signal) and not _flat)
+
+	context_bar(_context, "short-dmz",			_dmz and ta.crossunder(_macd, _signal) and not _flat)
+	context_bar(_context, "short", 			not _dmz and ta.crossunder(_macd, _signal) and not _flat)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      SuperTrend support
+//  ====================================================================================================================================================
+
+use_super_trend(Contexts contexts) =>
+	var Context	_context		=	context_create("super-trend")
+	var int		_fast_length	=	int(contexts_state_value(	contexts, "#", "super-trend.fast-length",		7))
+	var float	_fast_factor	=	contexts_state_value(		contexts, "#", "super-trend.fast-factor",		1)
+	var int		_slow_length	=	int(contexts_state_value(	contexts, "#", "super-trend.slow-length",		20))
+	var float	_slow_factor	=	contexts_state_value(		contexts, "#", "super-trend.slow-factor",		5)
+
+	[_fast_signal, _fast_trend] = ta7.supertrend2(_fast_factor, _fast_length, false)
+	[_slow_signal, _slow_trend] = ta7.supertrend2(_slow_factor, _slow_length, false)
+
+	context_bar(_context, "fast.signal",		_fast_signal)
+
+	context_bar(_context, "fast.up",			_fast_trend < 0)
+	context_bar(_context, "fast.up.start",		_fast_trend < 0 and _fast_trend[1] > 0)
+	context_bar(_context, "fast.up.end",		_fast_trend > 0 and _fast_trend[1] < 0)
+
+	context_bar(_context, "fast.down",			_fast_trend > 0)
+	context_bar(_context, "fast.down.start",	_fast_trend > 0 and _fast_trend[1] < 0)
+	context_bar(_context, "fast.down.end",		_fast_trend < 0 and _fast_trend[1] > 0)
+
+	context_bar(_context, "slow.signal",		_slow_signal)
+	
+	context_bar(_context, "slow.up",			_slow_trend < 0)
+	context_bar(_context, "slow.up.start",		_slow_trend < 0 and _slow_trend[1] > 0)
+	context_bar(_context, "slow.up.end",		_slow_trend > 0 and _slow_trend[1] < 0)
+
+	context_bar(_context, "slow.down",			_slow_trend > 0)
+	context_bar(_context, "slow.down.start",	_slow_trend > 0 and _slow_trend[1] < 0)
+	context_bar(_context, "slow.down.end",		_slow_trend < 0 and _slow_trend[1] > 0)
+
+	context_bar(_context, "up",					_fast_trend < 0 and _slow_trend < 0)
+	context_bar(_context, "down",				_fast_trend > 0 and _slow_trend > 0)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      Main Entry
+//			This piece manages whole workflow of the indicator and how it works (high-level).
+//  ====================================================================================================================================================
+
+//	@function	Main entry point of this indicator; even without any plotting, it could be used for strategy testing using TradingView built-in tester
+main(string script) =>
+	//	Contexts used in this indicator
+	var Contexts				_contexts	=	contexts_create()
+	//	Candles (contexts) used to detect patterns
+	var array<Contexts>			_candles	=	array.new<Contexts>()
+	//	Limit number of tracked candles for pattern analytics; this number should be reasonables
+	//		as it could take a lot of allocated memory
+	//		-	Lower (<= 5min) timeframes may need more tracked candles
+	//		-	Higher (> 5min) timeframes may need much less tracked candles
+	//
+	//	Also keep in mind that when you use non-strict pattern matching, you may need much more candles
+	const int					_limit		=	25
+	var Script					_script		=	parse(script)
+
+	//	This ensures all the bar-only variables are dropped before processing new bar
+	context_tick(_contexts)
+
+	//	Ensures all global default variables are available
+	use_context(_contexts,	use_defaults())
+
+	//	Script initialization must come *after* default values as it creates global context and so on
+	if use_init()
+		script_init(_script, _contexts)
+
+	//	Use all providers; if you want to add a new one, here is the proper place
+	//		-	Add "producers" first, for example "use_day_low_high" produces current day's factor, used in other "providers"
+	//		-	You may want to use "use_day_fibbonachi" results, thus yours "provider" must came after
+	//		-	Communication between individual producers must go through context, so all variables are accessible from PiPi Script
+	//		-	You can simply override default values, if you want - you have to provide all the variables (in short API) the original provider has
+	use_day_low_high(_contexts)
+	use_day_fibbonachi(_contexts)
+	use_session(_contexts)
+	use_macd(_contexts)
+	use_super_trend(_contexts)
+
+	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
+	use_candle(_contexts)
+
+	//	Add copy of current snapshot to candles, so one can ask for all the states/values/whatever on that candle
+	//		Just not that it's a current snapshot not altered by a script
+	_candles.push(contexts_copy(_contexts))
+	if _candles.size() > _limit
+		_candles.shift()
+
+	//	Handles script stuff, pattern matching, trades and others
+	script(_script, _candles, _contexts)
+
+	//	"External" trade manager to keep everything in sync
+	trader(_contexts)
+
+	Result.new(_contexts)
+
+//  ====================================================================================================================================================
+//      Main Entry execution
+//  ====================================================================================================================================================
+
+_result		=	main(i_script)
+_contexts	=	_result.contexts
+
+//  ====================================================================================================================================================
+//      Render day's low and high
+//  ====================================================================================================================================================
+
+plot(contexts_state_level(_contexts, "day", "level").high,	"Day High",	style =	plot.style_steplinebr,	linewidth = 2,	display = display.pane, color = color.teal)
+plot(contexts_state_level(_contexts, "day", "level").low,	"Day Low",	style =	plot.style_steplinebr,	linewidth = 2,	display = display.pane, color = color.fuchsia)
+
+//  ====================================================================================================================================================
+//      Render Fibbonachi levels
+//  ====================================================================================================================================================
+
+_fibb_alpha_1_linw			=	35
+_fibb_alpha_1_background	=	75
+_fibb_alpha_2_line			=	45
+_fibb_alpha_2_background	=	80
+_no_fill					=	contexts_bar_flag(_contexts, "day", "change", false)
+
+_color_0		=	color.new(color.rgb(189, 174, 90), _fibb_alpha_1_background)
+_plot_0_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "0").low,		"Fibb - 0 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_0, _fibb_alpha_1_linw), 		display = display.pane)
+_plot_0_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "0").high,		"Fibb - 0 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_0, _fibb_alpha_1_linw),		display = display.pane)
+fill(_plot_0_1, _plot_0_2, _no_fill ? na : _color_0,	"Fibb - 0 (fill)")
+
+_color_20		=	color.new(color.yellow, _fibb_alpha_1_background)
+_plot_20_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "20").low,		"Fibb - 23.6 (low)", 	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_20, _fibb_alpha_1_linw), 	display = display.pane)
+_plot_20_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "20").high,		"Fibb - 23.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_20, _fibb_alpha_1_linw),		display = display.pane)
+fill(_plot_20_1, _plot_20_2, _no_fill ? na : _color_20,	"Fibb - 23.6 (fill)")
+
+_color_30		=	color.new(color.orange, _fibb_alpha_2_background)
+_plot_30_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "30").low,		"Fibb - 38.2 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
+_plot_30_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "30").high,		"Fibb - 38.2 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
+fill(_plot_30_1, _plot_30_2, _no_fill ? na : _color_30,	"Fibb - 38.2 (fill)")
+
+_color_50		=	color.new(color.green, _fibb_alpha_1_background)
+_plot_50_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "50").low,		"Fibb - 50 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw),		display = display.pane)
+_plot_50_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "50").high,		"Fibb - 50 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw), 	display = display.pane)
+fill(_plot_50_1, _plot_50_2, _no_fill ? na : _color_50,	"Fibb - 50 (fill)")
+
+_color_60		=	color.new(color.teal, _fibb_alpha_2_background)
+_plot_60_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "60").low,		"Fibb - 61.8 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
+_plot_60_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "60").high,		"Fibb - 61.8 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
+fill(_plot_60_1, _plot_60_2, _no_fill ? na : _color_60,	"Fibb - 61.8 (fill)")
+
+_color_70		=	color.new(color.aqua, _fibb_alpha_1_background)
+_plot_70_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "70").low,		"Fibb - 78.6 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw),		display = display.pane)
+_plot_70_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "70").high,		"Fibb - 78.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw), 	display = display.pane)
+fill(_plot_70_1, _plot_70_2, _no_fill ? na : _color_70,	"Fibb - 78.6 (fill)")
+
+_color_100		=	color.new(color.green, _fibb_alpha_1_background)
+_plot_100_1 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").low,		"Fibb - 100 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
+_plot_100_2 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").high,		"Fibb - 100 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
+fill(_plot_100_1, _plot_100_2, _no_fill ? na : _color_100,	"Fibb - 100 (fill)")
+
+_profit_long	=	plot(contexts_state_value(_contexts, "#", "order", 0) > 0 ? contexts_state_value(_contexts, "#", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
+_loss_long		=	plot(contexts_state_value(_contexts, "#", "order", 0) > 0 ? contexts_state_value(_contexts, "#", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
+fill(_profit_long, _loss_long, title = "Long Background", color = color.new(color.green, 90))
+
+_profit_short	=	plot(contexts_state_value(_contexts, "#", "order", 0) < 0 ? contexts_state_value(_contexts, "#", "profit")	:	na,		"Short Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
+_loss_short		=	plot(contexts_state_value(_contexts, "#", "order", 0) < 0 ? contexts_state_value(_contexts, "#", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
+fill(_profit_short, _loss_short, title = "Short Background", color = color.new(color.red, 90))
+
+plotshape(contexts_bar_flag(_contexts, "#", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)
+plotshape(contexts_bar_flag(_contexts, "#", "sell"),	"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,	display = display.pane)
+
+bgcolor(contexts_bar_flag(_contexts, "session", "open") ? na :color.new(color.gray, 95), title = "Out-of-Session Background")
+
+// plot((math.max(open, close) + math.min(open, close)) / 2, linewidth = 3, color = color.aqua)
+// plot(hl2, linewidth = 3, color = color.green)

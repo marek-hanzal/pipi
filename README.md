@@ -1,5 +1,8 @@
 # PiPi
 
+> There will be revision of strategies every month; "main" branch will contain current month, while previous months will
+> be archived in individual branches.
+
 ## Intro
 
 PiPi is a trading system which takes quite different apprach. Base idea is to describe strategy using simple custom language, so it behaves all the time same way and is portable and then run strategy to see the results.

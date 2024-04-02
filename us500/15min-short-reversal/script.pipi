@@ -1,0 +1,47 @@
+init
+	set
+		name	s:#.session.time		1000-2300
+		flag	s:#.session.exclusive	true
+
+		value	s:#.factor				0.3
+	;
+;
+
+pattern
+	!strict
+
+	candle
+		flag	b:candle.red
+		value	b:candle.low	<	s:day-fibbonachi.100.high
+	;
+
+	candle
+		flag	b:candle.green
+		flag	b:candle.s.day-fibbonachi.70.body-over
+	;
+
+	candle
+		flag	b:candle.green
+		flag	b:candle.s.day-fibbonachi.60.body-over
+	;
+
+	candle
+		flag	b:candle.green
+		flag	b:candle.s.day-fibbonachi.20.body-over
+		value	b:candle.high	>	s:day-fibbonachi.0.low
+	;
+
+	candle
+		flag	b:candle.red
+	;
+
+	action
+		set
+			flag	b:#.sell		true
+		;
+
+		profit				s:day-fibbonachi.60.low
+		loss				s:day-fibbonachi.0.high			+	s:day.size(0.25)
+		short
+	;
+;

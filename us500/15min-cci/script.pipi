@@ -31,3 +31,26 @@ pattern
 		long
 	;
 ;
+
+pattern
+	candle
+		flag	b:candle.red
+		flag	b:cci.above.exit
+	;
+
+	candle
+		flag	b:candle.red
+		value	b:candle.low	<	s:day-fibbonachi.0.low
+		flag	b:candle.s.day-fibbonachi.20.body-over
+	;
+
+	action
+		set
+			flag	b:#.sell		true
+		;
+
+		profit				s:day-fibbonachi.70.high
+		loss				s:day-fibbonachi.0.high		+	s:day.size(0.5)
+		short
+	;
+;

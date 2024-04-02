@@ -5,7 +5,7 @@ init
 
 		value	s:#.factor				0.3
 
-		value	s:#.macd.length			24
+		value	s:#.macd.length			25
 		value	s:#.macd.signal			9
 		value	s:#.macd.impulse		3
 		value	s:#.macd.dmz			5

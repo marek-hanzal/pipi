@@ -5,7 +5,7 @@ init
 
 		value	s:#.factor				0.3
 
-		value	s:#.cci.length			20
+		value	s:#.cci.length			25
 	;
 ;
 

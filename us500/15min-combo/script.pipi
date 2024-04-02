@@ -26,8 +26,8 @@ pattern
 			flag	b:#.buy		true
 		;
 
-		profit				s:day-fibbonachi.30.high
-		loss				s:day-fibbonachi.100.low	+	s:day.size(0.05)
+		profit				s:day-fibbonachi.50.high
+		loss				s:day-fibbonachi.100.low	-	s:day.size(0.5)
 		long
 	;
 ;

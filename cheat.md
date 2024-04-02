@@ -1,3 +1,15 @@
+## Context
+
+- `s:` for state - this is a state, which persists between bars
+- `b:` for bar - this is a state, which is calculated for each bar
+
+### Global Context
+
+**Context**: `#`
+
+There is a special global context, which indicators use for configuration and you may use it for...
+...whatever you want.
+
 ## Levels
 
 **Flags:**

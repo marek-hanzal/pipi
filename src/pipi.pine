@@ -8,6 +8,12 @@ import TradingView/ta/7 as ta7
 //			So welcome here. You will *not* believe what you see here as this is not like any other indicator you may know. It's a more like a system,
 //			using it's own "description" language.
 //
+//			For documentation, examples and backtesting results, visit github homepage of the project:
+//			https://github.com/marek-hanzal/pipi
+//
+//			Jump directly to examples for US500 (Pepperstone) on 15min charts:
+//			https://github.com/marek-hanzal/pipi/tree/main/us500/15min
+//
 //			How it works:
 //			-	You write PiPi Script, which says, what are you searching for (candlestick patterns, indicator match and so on)
 //			-	You specify, what you want to do - for example only mark trends, put buy/sell indicator or execute trade using TradingView strategy
@@ -37,7 +43,7 @@ import TradingView/ta/7 as ta7
 //			All the inputs needed by this indicator.
 //  ====================================================================================================================================================
 
-const string	_script_hint	=	"TODO: Bla bla"
+const string	_script_hint	=	"You should pass your strategy script here, documentation is on the project's GitHub page (see indicator homepage for details)."
 var	string		i_script		=	input.text_area("", "Script",	display = display.none,	tooltip = _script_hint)
 
 //  ====================================================================================================================================================
@@ -377,7 +383,7 @@ context_state_default(Context context, string name, float value)			=>	context_st
 context_state_default(Context context, string name, float low, float high)	=>	context_state_default(context, name, value(level_create(name, low, high))).level
 
 //  ====================================================================================================================================================
-//      Context Map - State - Access (non-mutable)
+//      Context Map - State - Access (mutable)
 //  ====================================================================================================================================================
 
 contexts_state(Contexts contexts, string context, string name, string value) =>
@@ -391,6 +397,10 @@ contexts_state(Contexts contexts, string context, string name, bool value) =>
 
 contexts_state(Contexts contexts, string context, string name, Level value) =>
 	context_state(contexts_context(contexts, context), name, value)
+
+//  ====================================================================================================================================================
+//      Context Map - State - Access (non-mutable)
+//  ====================================================================================================================================================
 
 //	@function	Get a value (float) from context; if not present, default is returned (context is not modified)
 contexts_state_name(Contexts contexts, string context, string name, string default = na) =>
@@ -456,6 +466,17 @@ context_name(Context context, string scope, string name, string default = na)		=
 context_flag(Context context, string scope, string name, bool default = na)			=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(default)).flag
 context_value(Context context, string scope, string name, float default = na)		=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(default)).value
 context_level(Context context, string scope, string name, Level default = na)		=>	value(scope == "state" ? context.state.get(name) : context.bar.get(name), value(level(default))).level
+
+//  ====================================================================================================================================================
+//      Misc context stuff
+//  ====================================================================================================================================================
+
+//	@function	Counter - by default works in state scope; "na" value resets the counter to 0
+context_counter(Context context, string name, float value) =>
+	context_state(context, name, na(value) ? 0 : context_state_value(context, name, 0) + value)
+
+contexts_counter(Contexts contexts, string context, string name, float value) =>
+	context_counter(context(contexts.map.get(context), context_create(context)), name, value)
 
 //  ====================================================================================================================================================
 //      Independent Fibbonachi levels from the input Level's high/low
@@ -906,9 +927,14 @@ action_trade(Action action, Contexts contexts) =>
 				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = "Short: SL", comment_profit = "Short: TP")
 
 			if _entry
-				contexts_state(contexts, "#", "order",	action.order)
-				contexts_state(contexts, "#", "profit",	_profit)
-				contexts_state(contexts, "#", "loss",	_loss)
+				contexts_bar(contexts,		"trade", "entry",	true)
+
+				contexts_state(contexts,	"trade", "long",	action.order > 0)
+				contexts_state(contexts,	"trade", "short",	action.order < 0)
+				contexts_state(contexts,	"trade", "profit",	_profit)
+				contexts_state(contexts,	"trade", "loss",	_loss)
+				//	Reset trade length to zero
+				contexts_counter(contexts,	"trade", "length",	na)
 
 action(Action action, Contexts contexts) =>
 	contexts_values(contexts, action.set_value)
@@ -919,10 +945,22 @@ action(Action action, Contexts contexts) =>
 //  ====================================================================================================================================================
 
 trader(Contexts contexts) =>
+	//	Check, if we've closed a trade, this handles also trades opened and closed on the same candle
 	if strategy.closedtrades > strategy.closedtrades[1]
-		contexts_state(contexts, "#", "profit",	na)
-		contexts_state(contexts, "#", "loss",	na)
-		contexts_state(contexts, "#", "order",	0)
+		contexts_bar(contexts,		"trade", "exit",	true)
+
+		contexts_state(contexts,	"trade", "long",	false)
+		contexts_state(contexts,	"trade", "short",	false)
+		contexts_state(contexts,	"trade", "profit",	na)
+		contexts_state(contexts,	"trade", "loss",	na)
+		contexts_counter(contexts,	"trade", "length",	na)
+
+	//	If there is still open position, count the trasde; here we don't care, if the trade was closed on the same candle,
+	//	because it's handled properly by previous block
+	if bool(strategy.position_size)
+		contexts_counter(contexts,	"trade", "length",	1)
+
+	true
 
 //  ====================================================================================================================================================
 //      Script Execution stuff
@@ -982,13 +1020,13 @@ use_day_low_high(Contexts contexts) =>
 	else if low < _level.low
 		level_low(_level, low)
 		context_bar(_context, "change", true)
-		context_bar(_context, "higher-high", true)
+		context_bar(_context, "lower-low", true)
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 		context_state(_context, "size", _level.size)
 	else if high > _level.high
 		level_high(_level, high)
 		context_bar(_context, "change", true)
-		context_bar(_context, "lower-low", true)
+		context_bar(_context, "higher-high", true)
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 		context_state(_context, "size", _level.size)
 
@@ -1331,12 +1369,12 @@ _plot_100_1 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").low
 _plot_100_2 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").high,		"Fibb - 100 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
 fill(_plot_100_1, _plot_100_2, _no_fill ? na : _color_100,	"Fibb - 100 (fill)")
 
-_profit_long	=	plot(contexts_state_value(_contexts, "#", "order", 0) > 0 ? contexts_state_value(_contexts, "#", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
-_loss_long		=	plot(contexts_state_value(_contexts, "#", "order", 0) > 0 ? contexts_state_value(_contexts, "#", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
+_profit_long	=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
+_loss_long		=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
 fill(_profit_long, _loss_long, title = "Long Background", color = color.new(color.green, 90))
 
-_profit_short	=	plot(contexts_state_value(_contexts, "#", "order", 0) < 0 ? contexts_state_value(_contexts, "#", "profit")	:	na,		"Short Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
-_loss_short		=	plot(contexts_state_value(_contexts, "#", "order", 0) < 0 ? contexts_state_value(_contexts, "#", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
+_profit_short	=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Short Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
+_loss_short		=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
 fill(_profit_short, _loss_short, title = "Short Background", color = color.new(color.red, 90))
 
 plotshape(contexts_bar_flag(_contexts, "#", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)

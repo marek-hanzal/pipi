@@ -94,6 +94,26 @@ _No config required._
 **Values:**
 - `b:candle.[open/high/low/close]`      - candle's OHLC; for example `b:candle.low`
 
+## Trade
+
+Here are interesting things about current trade.
+
+**Context**: `trade`
+
+**Config:**
+_No config needed._
+
+**Flags:**
+- `b:trade.entry`       		- order is placed
+- `b:trade.exit`       		    - order is closed
+- `s:trade.long`      		    - long position
+- `s:trade.short`      		    - short position
+
+**Values:**
+- `s:trade.profit`              - profit price
+- `s:trade.loss`                - loss price
+- `s:trade.length`              - duration of a trade
+
 ## MACD
 
 You know this one.

@@ -53,7 +53,7 @@ Parser _does not care about whitespaces_, only place with **significance** prese
 
 > **Important note:** Because the language is written in PineScript, which was built for **_absolutely different_** purpose, parser has quite limited ability to detect errors and report them. So you **must** be careful, when writing your own script.
 
-### init section
+### init
 
 #### Overview
 
@@ -63,7 +63,7 @@ Exactly one occurance: used to set "global" variables for indicators, including 
 
 This section is a common way, how to set any variable in script. See the **set section** later on.
 
-### pattern section
+### pattern
 
 #### Overview
 
@@ -77,7 +77,7 @@ One strategy may contain number of patterns using Day Low/High Fibbonachi, MACD,
 
 > Script internally tracks limited number of candles a pattern runs on, so keep it mind if you want to write some extreme rules (really long and complex ones).
 
-#### pattern - strict
+#### strict
 
 Patterns in strict mode (with the `strict` keyword present) matches candles one-by-one, meaning if any candle breaks the rule, pattern won't match.
 
@@ -88,7 +88,7 @@ Patterns in strict mode (with the `strict` keyword present) matches candles one-
 
 This mode is useful if you're looking for very specific pattern, for example exact candle shapes (three soldiers or something like that).
 
-#### pattern - non-strict
+#### non-strict
 
 **This is a default mode.**
 

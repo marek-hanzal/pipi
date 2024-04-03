@@ -7,7 +7,7 @@
 
 > **If you are beginner to trading, this system is not suitable for you**, even you can find pre-made strategies, which *may* work.
 
-Before everything else: try whatever you find here, test your own mutations of strategies, but keep in mind - you're on the market and no indicator nor system is absolutly perfect.
+Before everything else: try whatever you find here, **test** your own mutations of strategies, but keep in mind - you're on the market and no indicator nor system is _**absolutly perfect**_.
 
 ## Intro
 

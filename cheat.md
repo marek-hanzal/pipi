@@ -49,11 +49,15 @@ Opens short position; `profit` and `loss` may not be specified (for example, you
 
 Closes all trades; useful if you want to run the trade without profit/loss and close it by the rule.
 
+> Keep in mind that `close` may be quite suboptimal as it closes the trade on the next candle's open.
+
 ### set
 
 Set various variables, when a pattern matches; see [Set section](#set-variables) for more details.
 
 ## Set (variables)
+
+// TODO: Sorry
 
 ## Context
 
@@ -164,6 +168,7 @@ _No config needed._
 **Flags:**
 - `b:trade.entry`       		- order is placed
 - `b:trade.exit`       		    - order is closed
+- `b:trade.closed`    		    - an action has closed the trade
 - `s:trade.long`      		    - long position
 - `s:trade.short`      		    - short position
 

@@ -150,6 +150,7 @@ type Action
 	Math				profit
 	Math				loss
 	int					order
+	bool				close
 
 //	@type				Pattern used to match multiple candles
 //	@field	strict		Strict means all candles must be next to each other; non-strict - pattern is checked on the fly, last matching candle commits true
@@ -812,6 +813,7 @@ parse_action(string[] stack, string line, Action action) =>
 		"loss"				=>	parse_action_profit_loss(_action, action)
 		"long"				=>	action.order	:=	1
 		"short"				=>	action.order	:=	-1
+		"close"				=>	action.close	:=	true
 
 	action
 
@@ -901,6 +903,9 @@ parse(string script) =>
 		if __pattern.action.order < 0
 			log.info("-	Short")
 
+		if __pattern.action.close
+			log.info("-	Close")
+
 	_script
 
 //  ====================================================================================================================================================
@@ -935,6 +940,10 @@ action_trade(Action action, Contexts contexts) =>
 				contexts_state(contexts,	"trade", "loss",	_loss)
 				//	Reset trade length to zero
 				contexts_counter(contexts,	"trade", "length",	na)
+
+	if action.close
+		contexts_bar(contexts,		"trade", "closed",	true)
+		strategy.close_all("CbA")
 
 action(Action action, Contexts contexts) =>
 	contexts_values(contexts, action.set_value)
@@ -1379,6 +1388,8 @@ fill(_profit_short, _loss_short, title = "Short Background", color = color.new(c
 
 plotshape(contexts_bar_flag(_contexts, "#", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)
 plotshape(contexts_bar_flag(_contexts, "#", "sell"),	"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,	display = display.pane)
+
+plotshape(contexts_bar_flag(_contexts, "trade", "closed"),	"Closed",		style = shape.xcross,		location = location.abovebar, color = color.red,		display = display.pane)
 
 bgcolor(contexts_bar_flag(_contexts, "session", "open") ? na :color.new(color.gray, 95), title = "Out-of-Session Background")
 

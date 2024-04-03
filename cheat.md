@@ -49,6 +49,8 @@ Opens short position; `profit` and `loss` may not be specified (for example, you
 
 Closes all trades; useful if you want to run the trade without profit/loss and close it by the rule.
 
+You'll see `x-cross` and close order description `CbA` (Closed by Action).
+
 > Keep in mind that `close` may be quite suboptimal as it closes the trade on the next candle's open.
 
 ### set
@@ -128,6 +130,8 @@ Tracks daily high and low prices.
 
 This one works in cooperation with day's low/high. Tracks fibbonachi levels during the day.
 
+**Context**: `day-fibbonachi`
+
 **Config:**
 - `s:#.factor`           - affected by this config, through the day's factor
 
@@ -139,6 +143,24 @@ This one works in cooperation with day's low/high. Tracks fibbonachi levels duri
 - `s:day-fibbonachi.60`  - 61.8%
 - `s:day-fibbonachi.70`  - 78.6%
 - `s:day-fibbonachi.100` - day's low
+
+### Session
+
+Tracks session open/close (to limit trades only during the day or whatever you want).
+
+**Context**: `session`
+
+**Config:**
+- `s:#.session.time`        - time range (for example `1000-2300`)
+- `s:#.session.exclusive`   - if true, only trades during the session time
+
+**Flags:**
+- `b:session.open`          - Tells, if we're in the session you specified
+- `b:session.is-open`       - One time flag marking opened session
+- `b:session.is-close`      - One time flag marking closed session
+
+**Values:**
+_No values provided._
 
 ### Candle
 

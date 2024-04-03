@@ -8,7 +8,7 @@ init
 		value	s:#.cci.length			25
 
 		// This is custom value, so "constants" are not placed in the code itself
-		value	s:#.long-trade			10
+		value	s:#.long-trade			14
 	;
 ;
 

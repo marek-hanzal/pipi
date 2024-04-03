@@ -1,6 +1,6 @@
 # PiPi
 
-> There will be revision of strategies every month; "main" branch will contain current month, while previous months will
+> There will be revision of strategies **every month**; "main" branch will contain **current** month, while previous months will
 > be archived in individual branches.
 
 ## Disclaimer
@@ -11,9 +11,10 @@ Before everything else: try whatever you find here, **test** your own mutations 
 
 ## Intro
 
-PiPi is a trading system which takes quite different apprach. Base idea is to describe strategy using simple custom language, so it behaves all the time same way and is portable and then run strategy to see the results.
+**PiPi** is a **_trading system_** which takes quite _different_ approach. Base idea is to _describe_ a strategy using simple custom language, so it behaves all
+the time same way and is portable and then run strategy to see the results.
 
-It may be used only as buy/sell indicator using your own rules, or fully-fledged trading system with active backtesting (using TradingView's Strategy Tester).
+It may be used _only_ as buy/sell indicator using your own rules, or fully-fledged trading system with active backtesting (using TradingView's Strategy Tester).
 
 The name - don't ask me, _even I don't know_ - it's just short and **I like it**.
 
@@ -21,11 +22,16 @@ The name - don't ask me, _even I don't know_ - it's just short and **I like it**
 
 ## The Reason
 
-Yes, this system integrates some commonly used indicators, but main difference is in the way, how it works: you're targeting individual candlestick patterns and executing actions on them. The idea was to convert human's behavior into the code for consistant results in trading.
+Yes, this system integrates some commonly used indicators, but the main difference is in the way, how it works: you're targeting individual candlestick
+patterns and executing actions on them. The idea was to convert human behavior into the code for consistent results in trading.
 
-Common question "How would I do that as a human?" is transformed into the language, so you can share, version or quickly switch strategies for various situations.
+Common question **_"How would I do that as a human?"_** is transformed into the language, so you can share, version or quickly switch strategies for various situations.
 
-Also, custom language is used mainly for the ability to copy-paste the code. From there you can simply switch different strategies and test it's results. Yes, it may be a bit cumbersome without TradingView's inputs, but it's worth it - you'll never-ever forget any input.
+> _Why language in language?_ You can program all the things here, but it's time consuming and you cannot simply share nor test the results. This is the bare system
+> you can use with your rules, which you can simply switch. As en example, you can see this repository, where GIT is used to version strategies.
+
+Also, custom language is used mainly for the ability to copy-paste the code. From there you can simply switch different strategies and test its
+results. Yes, it may be a bit cumbersome without TradingView's inputs, but it's worth it - you'll never-ever forget any input.
 
 ## Strategies
 

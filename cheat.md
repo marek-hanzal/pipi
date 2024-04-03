@@ -51,7 +51,7 @@ Closes all trades; useful if you want to run the trade without profit/loss and c
 
 ### set
 
-Set various variables, when a pattern matches; see Set section for more details.
+Set various variables, when a pattern matches; see [Set section](#set-variables) for more details.
 
 ## Set (variables)
 

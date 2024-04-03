@@ -13,7 +13,7 @@ Profit sets profit price. By itself it does nothing else (for entering a trade, 
 > At least value must be set, the rest is optional.
 
 **Code:**
-`profit				[value]([modifier]) [+ | -] [value]([modifier])`
+`profit		[value]([modifier]) [+ | -] [value]([modifier])`
 
 **Description:**
 - `profit`	     - the keyword
@@ -22,10 +22,20 @@ Profit sets profit price. By itself it does nothing else (for entering a trade, 
 - `[+ | -]`	     - optionally you can calculate values (for example `s:day.size(0.5) + 0.3`)
 
 **Example:**
-`profit				s:day-fibbonachi.100.low	-	s:day.size(0.5)`
+`profit		s:day-fibbonachi.100.low	-	s:day.size(0.5)`
 
 **Meaning:**
 Set `profit` to a base value of 100% fibbonachi level's low (`s:day-fibbonachi.100.low`), but subtracted by a modifier of half (`(0.5)`) of the day's size (`s:day.size`). 
+
+**Example:**
+`profit		b:candle.top	+	1.5`
+
+**Meaning:**
+Just set the profit to 1.5 points above the candle's top (regardless of green/red candle).
+
+### loss
+
+The same as `profit`, only use `loss` keyword.
 
 ## Context
 

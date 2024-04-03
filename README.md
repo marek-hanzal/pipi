@@ -3,6 +3,12 @@
 > There will be revision of strategies every month; "main" branch will contain current month, while previous months will
 > be archived in individual branches.
 
+## Disclaimer
+
+> **If you are beginner to trading, this system is not suitable for you**, even you can find pre-made strategies, which *may* work.
+
+Before everything else: try whatever you find here, test your own mutations of strategies, but keep in mind - you're on the market and no indicator nor system is absolutly perfect.
+
 ## Intro
 
 PiPi is a trading system which takes quite different apprach. Base idea is to describe strategy using simple custom language, so it behaves all the time same way and is portable and then run strategy to see the results.
@@ -21,11 +27,12 @@ Common question "How would I do that as a human?" is transformed into the langua
 
 Also, custom language is used mainly for the ability to copy-paste the code. From there you can simply switch different strategies and test it's results. Yes, it may be a bit cumbersome without TradingView's inputs, but it's worth it - you'll never-ever forget any input.
 
-## Disclaimer
+## Strategies
 
-> **If you are beginner to trading, this system is not suitable for you**, even you can find pre-made strategies, which *may* work.
+Example strategies included are somehow optimized for profit, but the goal is not to have _"nice numbers"_ for you, but to find the best strategy possible using this tool.
+Also huge emphasize goes to reproducible results, so you can pick a strategy and should see similar results on your own.
 
-Before everything else: try whatever you find here, test your own mutations of strategies, but keep in mind - you're on the market and no indicator nor system is absolutly perfect.
+> All the times it depends on the market itself, time of the day, news, etc. - so don't expect from strategy same performance all the time.
 
 ## How it works
 

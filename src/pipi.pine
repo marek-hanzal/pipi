@@ -146,6 +146,7 @@ type Candle
 //	@field	loss		Set loss (does not execute a trade)
 //	@field	order		> 0, long, < 0 short, everything else - nothing
 type Action
+	string				hint
 	SetValue[]			set_value
 	Math				profit
 	Math				loss
@@ -158,6 +159,7 @@ type Action
 //	@field	candle		Array of candle rules
 //	@field	action		Action being taken when pattern is matched
 type Pattern
+	string				name
 	bool				strict
 	bool				enabled
 	Candle[]			candle
@@ -700,10 +702,10 @@ math_create(string[] left, string operator, string[] right) =>
 	Math.new(left, operator, right)
 
 action_create() =>
-	Action.new(array.new<SetValue>(), na, na, 0)
+	Action.new(na, array.new<SetValue>(), na, na, 0)
 
 pattern_create() =>
-	Pattern.new(false, true, array.new<Candle>(), action_create())
+	Pattern.new(na, false, true, array.new<Candle>(), action_create())
 
 script_create() =>
 	Script.new(Init.new(array.new<SetValue>()), array.new<Pattern>())
@@ -755,15 +757,15 @@ parse_set(string line, SetValue[] set_value) =>
 		set_value.push(SetValue.new(_set.get(0), parse_key(_set.get(1)), parse_key(_set.get(2))))
 
 parse_pattern(string[] stack, string line, Pattern pattern) =>
-	switch line
-		"strict"	=> pattern.strict:=		true
-		"!strict"	=> pattern.strict:=		false
-		"disabled"	=> pattern.enabled:=	false
-		"candle"	=>
-			stack.push("parse_pattern_candle")
+	_text = str.split(line, "\t")
 
-		"action"	=>
-			stack.push("parse_action")
+	switch _text.get(0)
+		"name"		=>	pattern.name	:=	_text.size() == 2 ? _text.get(1) : na
+		"strict"	=>	pattern.strict	:=	true
+		"!strict"	=>	pattern.strict	:=	false
+		"disabled"	=>	pattern.enabled	:=	false
+		"candle"	=>	stack.push("parse_pattern_candle")
+		"action"	=>	stack.push("parse_action")
 
 	pattern
 
@@ -817,6 +819,7 @@ parse_action(string[] stack, string line, Action action) =>
 	_action	=	str.split(line, "\t")
 
 	switch _action.get(0)
+		"hint"				=>	action.hint:=	_action.size() == 2 ? _action.get(1) : na
 		"set"				=>	stack.push("parse_set")
 		"profit"			=>	parse_action_profit_loss(_action, action)
 		"loss"				=>	parse_action_profit_loss(_action, action)
@@ -889,7 +892,7 @@ parse(string script) =>
 		log.info("- set value [{0}] -> {1} {2}", _v.target, _v.key, _v.value)
 
 	for __pattern in _script.pattern
-		log.info("=== Pattern [{0}]", __pattern.strict ? "strict" : "non-strict")
+		log.info("=== Pattern [{0} - {1}]", _pattern.name, __pattern.strict ? "strict" : "non-strict")
 
 		for __candle in __pattern.candle
 			log.info("== Candle")
@@ -931,14 +934,17 @@ action_trade(Action action, Contexts contexts) =>
 
 		if _is_session and not bool(strategy.position_size)
 			_entry = false
+			_hint_profit	= na(action.hint) ? "TP" : action.hint + ": TP"
+			_hint_loss		= na(action.hint) ? "SL" : action.hint + ": SL"
+
 			if action.order > 0
 				_entry:= true
-				strategy.entry("long", direction = strategy.long)
-				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = "Long: SL", comment_profit = "Long: TP")
+				strategy.entry("long", direction = strategy.long, comment = action.hint)
+				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
 			else if action.order < 0
 				_entry:= true
-				strategy.entry("short", direction = strategy.short)
-				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = "Short: SL", comment_profit = "Short: TP")
+				strategy.entry("short", direction = strategy.short, comment = action.hint)
+				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
 
 			if _entry
 				contexts_bar(contexts,		"trade", "entry",	true)

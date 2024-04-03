@@ -37,6 +37,7 @@ pattern
 			flag	b:#.buy		true
 		;
 
+		hint				CCI Long
 		profit				s:day-fibbonachi.50.high
 		loss				s:day-fibbonachi.100.low	-	s:day.size(0.5)
 		long
@@ -60,12 +61,14 @@ pattern
 			flag	b:#.sell		true
 		;
 
+		hint				CCI Short
 		profit				s:day-fibbonachi.70.high
 		loss				s:day-fibbonachi.0.high		+	s:day.size(0.5)
 		short
 	;
 ;
 
+//	Short Reversal
 pattern
 	candle
 		flag	b:candle.red
@@ -97,6 +100,7 @@ pattern
 			flag	b:#.sell		true
 		;
 
+		hint				Short Reversal
 		profit				s:day-fibbonachi.60.low
 		loss				s:day-fibbonachi.0.high			+	s:day.size(0.25)
 		short
@@ -118,6 +122,7 @@ pattern
 			flag	b:#.buy
 		;
 
+		hint	MACD Long
 		profit	b:candle.high	+	s:day.size(0.1)
 		loss	b:candle.low	-	s:day.size(0.3)
 		long
@@ -125,6 +130,8 @@ pattern
 ;
 
 pattern
+	strict
+
 	candle
 		flag	b.candle.s.day-fibbonachi.20.body-over
 	;
@@ -140,6 +147,7 @@ pattern
 			flag	b:#.sell
 		;
 
+		hint	MACD Short
 		profit	b:candle.low	-	s:day.size(0.15)
 		loss	b:candle.high	+	s:day.size(0.25)
 		short

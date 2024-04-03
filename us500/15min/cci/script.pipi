@@ -9,6 +9,47 @@ init
 
 		// This is custom value, so "constants" are not placed in the code itself
 		value	s:#.long-trade			14
+		value	s:#.take-profit			4
+	;
+;
+
+//	Simple check to kill a long running trades
+//	- This should go first, because another pattern may match on the same candle, thus not executing
+//		this rule
+pattern
+	strict
+	disabled
+
+	candle
+		value	s:trade.length	>	s:#.long-trade
+	;
+
+	action
+		close
+	;
+;
+
+pattern
+	strict
+
+	candle
+		value	s:trade.pnl		>=	s:#.take-profit
+	;
+
+	action
+		close
+	;
+;
+
+pattern
+	strict
+
+	candle
+		flag	b:session.is-close
+	;
+
+	action
+		close
 	;
 ;
 
@@ -29,7 +70,6 @@ pattern
 			flag	b:#.buy		true
 		;
 
-		profit				s:day-fibbonachi.50.high
 		loss				s:day-fibbonachi.100.low	-	s:day.size(0.5)
 		long
 	;
@@ -52,19 +92,8 @@ pattern
 			flag	b:#.sell		true
 		;
 
-		profit				s:day-fibbonachi.70.high
 		loss				s:day-fibbonachi.0.high		+	s:day.size(0.5)
 		short
 	;
 ;
 
-//	Simple check to kill a long running trades
-pattern
-	candle
-		value	s:trade.length	>	s:#.long-trade
-	;
-
-	action
-		close
-	;
-;

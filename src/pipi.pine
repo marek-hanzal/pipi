@@ -917,8 +917,8 @@ action_trade(Action action, Contexts contexts) =>
 
 	if action.order != 0
 		_is_session	=	contexts_bar_flag(contexts, "session", "open", true)
-		_profit		=	math(action.profit,	contexts)
-		_loss		=	math(action.loss,	contexts)
+		_profit		=	na(action.profit)	? na : math(action.profit,	contexts)
+		_loss		=	na(action.loss)		? na : math(action.loss,	contexts)
 
 		if _is_session and not bool(strategy.position_size)
 			_entry = false
@@ -941,7 +941,7 @@ action_trade(Action action, Contexts contexts) =>
 				//	Reset trade length to zero
 				contexts_counter(contexts,	"trade", "length",	na)
 
-	if action.close
+	if bool(strategy.position_size) and action.close
 		contexts_bar(contexts,		"trade", "closed",	true)
 		strategy.close_all("CbA")
 
@@ -956,18 +956,20 @@ action(Action action, Contexts contexts) =>
 trader(Contexts contexts) =>
 	//	Check, if we've closed a trade, this handles also trades opened and closed on the same candle
 	if strategy.closedtrades > strategy.closedtrades[1]
-		contexts_bar(contexts,		"trade", "exit",	true)
+		contexts_bar(		contexts,	"trade",	"exit",		true)
 
-		contexts_state(contexts,	"trade", "long",	false)
-		contexts_state(contexts,	"trade", "short",	false)
-		contexts_state(contexts,	"trade", "profit",	na)
-		contexts_state(contexts,	"trade", "loss",	na)
-		contexts_counter(contexts,	"trade", "length",	na)
+		contexts_state(		contexts,	"trade",	"long",		false)
+		contexts_state(		contexts,	"trade",	"short",	false)
+		contexts_state(		contexts,	"trade",	"profit",	na)
+		contexts_state(		contexts,	"trade",	"loss",		na)
+		contexts_counter(	contexts,	"trade",	"length",	na)
+		contexts_state(		contexts,	"trade",	"pnl",		na)
 
 	//	If there is still open position, count the trasde; here we don't care, if the trade was closed on the same candle,
 	//	because it's handled properly by previous block
 	if bool(strategy.position_size)
-		contexts_counter(contexts,	"trade", "length",	1)
+		contexts_counter(	contexts,	"trade",	"length",	1)
+		contexts_state(		contexts,	"trade",	"pnl",		strategy.openprofit)
 
 	true
 
@@ -1277,7 +1279,7 @@ main(string script) =>
 	//		-	Higher (> 5min) timeframes may need much less tracked candles
 	//
 	//	Also keep in mind that when you use non-strict pattern matching, you may need much more candles
-	const int					_limit		=	25
+	const int					_limit		=	50
 	var Script					_script		=	parse(script)
 
 	//	This ensures all the bar-only variables are dropped before processing new bar

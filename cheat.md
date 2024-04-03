@@ -198,6 +198,7 @@ _No config needed._
 - `s:trade.profit`              - profit price
 - `s:trade.loss`                - loss price
 - `s:trade.length`              - duration of a trade
+- `s:trade.pnl`                 - current profit/loss; if you want to close the trade by this rule, keep in mind your position size (so you may have a lot of small trades with bigger positions)
 
 ### MACD
 

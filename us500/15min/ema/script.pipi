@@ -1,0 +1,12 @@
+init
+	set
+		name	s:#.session.time		1000-2300
+		flag	s:#.session.exclusive	true
+
+		value	s:#.factor				0.3
+
+		value	s:#.ema.length-1		20
+		value	s:#.ema.length-2		50
+		value	s:#.ema.length-3		200
+	;
+;

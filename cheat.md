@@ -275,3 +275,28 @@ Commodity Channel Index, default TradingView implementation.
 
 **Values:**
 - `b:cci.signal`              - CCI value
+
+### EMA
+
+Default TradingView EMA using three lengths (if you want).
+
+**Context**: `ema`
+
+**Config:**
+- `s:#.factor`                 - affected by this config, through the day's factor
+- `s:#.ema.length-1`           - length 1 (int)
+- `s:#.ema.length-2`           - length 2 (int)
+- `s:#.ema.length-3`           - length 3 (int)
+
+**Flags:**
+// not yet
+
+**Values:**
+- `b:ema.ema.1`              - EMA value for length 1
+- `b:ema.ema.2`              - EMA value for length 2
+- `b:ema.ema.3`              - EMA value for length 3
+
+**Levels:**
+- `b:ema.1`              	 - EMA level for length 1
+- `b:ema.2`              	 - EMA level for length 2
+- `b:ema.3`              	 - EMA level for length 3

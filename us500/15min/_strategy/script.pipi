@@ -102,7 +102,7 @@ pattern
 
 		hint				Short Reversal
 		profit				s:day-fibbonachi.60.low
-		loss				s:day-fibbonachi.0.high			+	s:day.size(0.25)
+		loss				s:day-fibbonachi.0.high			+	s:day.size(0.20)
 		short
 	;
 ;

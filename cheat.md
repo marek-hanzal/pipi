@@ -37,6 +37,24 @@ Just set the profit to 1.5 points above the candle's top (regardless of green/re
 
 The same as `profit`, only use `loss` keyword.
 
+###	long
+
+Opens long position; `profit` and `loss` may not be specified (for example, you can close the trade by another pattern).
+
+### short
+
+Opens short position; `profit` and `loss` may not be specified (for example, you can close the trade by another pattern).
+
+### close
+
+Closes all trades; useful if you want to run the trade without profit/loss and close it by the rule.
+
+### set
+
+Set various variables, when a pattern matches; see Set section for more details.
+
+## Set (variables)
+
 ## Context
 
 - `s:` for state - this is a state, which persists between bars

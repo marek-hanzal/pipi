@@ -10,3 +10,25 @@ init
 		value	s:#.ema.length-3		200
 	;
 ;
+
+pattern
+	candle
+		flag	b:ema.cross.1-2
+	;
+
+	candle
+		flag	b:candle.green
+		flag	b:day.higher-high
+		value	b:ema.1.level	>	b:ema.2.level
+	;
+
+	action
+		set
+			flag	b:#.buy		true
+		;
+
+		profit	s:day-fibbonachi.0.high		+	s:day.size(0.5)
+		loss	s:day-fibbonachi.100.high
+		long
+	;
+;

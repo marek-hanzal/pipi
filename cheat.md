@@ -296,11 +296,6 @@ Default TradingView EMA using three lengths (if you want).
 - `b:ema.cross.3-1`		   	 - EMA 3 crosses EMA 1 (cross over)
 - `b:ema.cross.3-2`		   	 - EMA 3 crosses EMA 2 (cross over)
 
-**Values:**
-- `b:ema.ema.1`              - EMA value for length 1
-- `b:ema.ema.2`              - EMA value for length 2
-- `b:ema.ema.3`              - EMA value for length 3
-
 **Levels:**
 - `b:ema.1`              	 - EMA level for length 1
 - `b:ema.2`              	 - EMA level for length 2

@@ -180,7 +180,7 @@ type Result
 //  ====================================================================================================================================================
 
 level_create(string name, float low, float high)	=>	Level.new(name, low, high, (high - low) / 2, math.abs(high - low))
-level(string name, float level, float factor)		=>	level_create(name, level - factor, level + factor)
+level(string name, float level, float factor)		=>	Level.new(name, level - factor, level + factor, level, factor * 2)
 level(Level level)									=>	na(level) ? level_create("na", na, na) : level
 
 level_low(Level level, float low) =>
@@ -290,6 +290,15 @@ context_bar_default(Context context, string name, Value default) =>
 		_value:= context_bar(context, name, default)
 	_value
 
+context_bar_levels(Context context, map<string, Level> levels) =>
+	context_bar(context, levels)
+
+	for [__name, __level] in levels
+		context_bar(context, __name + ".low",	__level.low)
+		context_bar(context, __name + ".high",	__level.high)
+		context_bar(context, __name + ".level",	__level.level)
+		context_bar(context, __name + ".size",	__level.size)
+
 //  ====================================================================================================================================================
 //      Context - Bar - Access (non-mutable)
 //  ====================================================================================================================================================
@@ -348,7 +357,7 @@ context_state(Context context, map<string, Level> levels) =>
 	for [_name, _level] in levels
 		context_state(context, _name, _level)
 
-context_levels(Context context, Contexts contexts, map<string, Level> levels) =>
+context_state_levels(Context context, map<string, Level> levels) =>
 	context_state(context, levels)
 
 	for [__name, __level] in levels
@@ -830,7 +839,7 @@ parse(string script) =>
 	for _line in _source
 		_text = str.trim(_line)
 
-		if str.startswith(_text, '//')
+		if str.startswith(_text, '//') or str.length(_text) == 0
 			continue
 
 		switch _text
@@ -1053,11 +1062,11 @@ use_day_fibbonachi(Contexts contexts) =>
 
 	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
-		context_levels(_context, contexts, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
+		context_state_levels(_context, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
 
 	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
 	if contexts_bar_flag(contexts, "day", "change")
-		context_levels(_context, contexts, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
+		context_state_levels(_context, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
 
 	use_context(contexts, _context)
 
@@ -1263,6 +1272,39 @@ use_cci(Contexts contexts) =>
 	use_context(contexts, _context)
 
 //  ====================================================================================================================================================
+//      EMA
+//  ====================================================================================================================================================
+
+use_ema(Contexts contexts) =>
+	var Context			_context	=	context_create("ema")
+	var int				_length_1	=	int(contexts_state_value(	contexts, "#", "ema.length-1",		20))
+	var int				_length_2	=	int(contexts_state_value(	contexts, "#", "ema.length-2",		50))
+	var int				_length_3	=	int(contexts_state_value(	contexts, "#", "ema.length-3",		200))
+	float 				_factor		=	contexts_state_value(contexts, "day", "factor", 0)
+	map<string, Level>	_ema		=	map.new<string, Level>()
+
+	_ema_1	=	ta7.ema2(close, _length_1)
+	_ema_2	=	ta7.ema2(close, _length_2)
+	_ema_3	=	ta7.ema2(close, _length_3)
+
+	context_bar(_context, "cross.1-2",		ta.crossover(_ema_1, _ema_2))
+	context_bar(_context, "cross.1-3",		ta.crossover(_ema_1, _ema_3))
+
+	context_bar(_context, "cross.2-1",		ta.crossover(_ema_2, _ema_1))
+	context_bar(_context, "cross.2-3",		ta.crossover(_ema_2, _ema_3))
+
+	context_bar(_context, "cross.3-1",		ta.crossover(_ema_3, _ema_1))
+	context_bar(_context, "cross.3-2",		ta.crossover(_ema_3, _ema_2))
+
+	level_push(_ema, "1", 		_ema_1, _factor)
+	level_push(_ema, "2", 		_ema_2, _factor)
+	level_push(_ema, "3", 		_ema_3, _factor)
+
+	context_bar_levels(_context, _ema)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
 //      Main Entry
 //			This piece manages whole workflow of the indicator and how it works (high-level).
 //  ====================================================================================================================================================
@@ -1303,6 +1345,7 @@ main(string script) =>
 	use_macd(_contexts)
 	use_super_trend(_contexts)
 	use_cci(_contexts)
+	use_ema(_contexts)
 
 	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
 	use_candle(_contexts)
@@ -1339,10 +1382,10 @@ plot(contexts_state_level(_contexts, "day", "level").low,	"Day Low",	style =	plo
 //      Render Fibbonachi levels
 //  ====================================================================================================================================================
 
-_fibb_alpha_1_linw			=	35
-_fibb_alpha_1_background	=	75
-_fibb_alpha_2_line			=	45
-_fibb_alpha_2_background	=	80
+_fibb_alpha_1_linw			=	50
+_fibb_alpha_1_background	=	80
+_fibb_alpha_2_line			=	60
+_fibb_alpha_2_background	=	85
 _no_fill					=	contexts_bar_flag(_contexts, "day", "change", false)
 
 _color_0		=	color.new(color.rgb(189, 174, 90), _fibb_alpha_1_background)
@@ -1380,6 +1423,10 @@ _plot_100_1 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").low
 _plot_100_2 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").high,		"Fibb - 100 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
 fill(_plot_100_1, _plot_100_2, _no_fill ? na : _color_100,	"Fibb - 100 (fill)")
 
+//  ====================================================================================================================================================
+//      Render Profit/Loss for trades
+//  ====================================================================================================================================================
+
 _profit_long	=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
 _loss_long		=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
 fill(_profit_long, _loss_long, title = "Long Background", color = color.new(color.green, 90))
@@ -1388,12 +1435,25 @@ _profit_short	=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts
 _loss_short		=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
 fill(_profit_short, _loss_short, title = "Short Background", color = color.new(color.red, 90))
 
+//  ====================================================================================================================================================
+//      Render Trade flags
+//  ====================================================================================================================================================
+
 plotshape(contexts_bar_flag(_contexts, "#", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)
 plotshape(contexts_bar_flag(_contexts, "#", "sell"),	"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,	display = display.pane)
 
 plotshape(contexts_bar_flag(_contexts, "trade", "closed"),	"Closed",		style = shape.xcross,		location = location.abovebar, color = color.red,		display = display.pane)
 
+//  ====================================================================================================================================================
+//      Session
+//  ====================================================================================================================================================
+
 bgcolor(contexts_bar_flag(_contexts, "session", "open") ? na :color.new(color.gray, 95), title = "Out-of-Session Background")
 
-// plot((math.max(open, close) + math.min(open, close)) / 2, linewidth = 3, color = color.aqua)
-// plot(hl2, linewidth = 3, color = color.green)
+//  ====================================================================================================================================================
+//      Render EMA
+//  ====================================================================================================================================================
+
+plot(contexts_bar_level(_contexts, "ema", "1").level, "EMA-1", color = color.blue,		display = display.pane)
+plot(contexts_bar_level(_contexts, "ema", "2").level, "EMA-2", color = color.orange,		display = display.pane)
+plot(contexts_bar_level(_contexts, "ema", "3").level, "EMA-3", color = color.purple,		display = display.pane)

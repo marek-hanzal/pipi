@@ -16,10 +16,10 @@ Profit sets profit price. By itself it does nothing else (for entering a trade, 
 `profit				[value]([modifier]) [+ | -] [value]([modifier])`
 
 **Description:**
-- profit	    - the keyword
-- [value]	    - may be constant (`0.3`) or value from a context (`s:day-fibbonachi.100.low`)
-- ([modifier])  - optional modifier (for example `s:day.size(0.5)`); this multiplies the value by the modifier
-- [+ | -]	    - optionally you can calculate values (for example `s:day.size(0.5) + 0.3`)
+- `profit`	     - the keyword
+- `[value]`	     - may be constant (`0.3`) or value from a context (`s:day-fibbonachi.100.low`)
+- `([modifier])` - optional modifier (for example `s:day.size(0.5)`); this multiplies the value by the modifier
+- `[+ | -]`	     - optionally you can calculate values (for example `s:day.size(0.5) + 0.3`)
 
 **Example:**
 `profit				s:day-fibbonachi.100.low	-	s:day.size(0.5)`

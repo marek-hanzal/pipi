@@ -283,13 +283,18 @@ Default TradingView EMA using three lengths (if you want).
 **Context**: `ema`
 
 **Config:**
-- `s:#.factor`                 - affected by this config, through the day's factor
-- `s:#.ema.length-1`           - length 1 (int)
-- `s:#.ema.length-2`           - length 2 (int)
-- `s:#.ema.length-3`           - length 3 (int)
+- `s:#.factor`               - affected by this config, through the day's factor
+- `s:#.ema.length-1`         - length 1 (int)
+- `s:#.ema.length-2`         - length 2 (int)
+- `s:#.ema.length-3`         - length 3 (int)
 
 **Flags:**
-// not yet
+- `b:ema.cross.1-2`		   	 - EMA 1 crosses EMA 2 (cross over)
+- `b:ema.cross.1-3`		   	 - EMA 1 crosses EMA 3 (cross over)
+- `b:ema.cross.2-1`		   	 - EMA 2 crosses EMA 1 (cross under)
+- `b:ema.cross.2-3`		   	 - EMA 2 crosses EMA 3 (cross over)
+- `b:ema.cross.3-1`		   	 - EMA 3 crosses EMA 1 (cross under)
+- `b:ema.cross.3-2`		   	 - EMA 3 crosses EMA 2 (cross under)
 
 **Values:**
 - `b:ema.ema.1`              - EMA value for length 1

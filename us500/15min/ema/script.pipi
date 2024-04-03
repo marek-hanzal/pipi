@@ -20,6 +20,8 @@ pattern
 		flag	b:candle.green
 		flag	b:day.higher-high
 		value	b:ema.1.level	>	b:ema.2.level
+
+		cross	b:ema.1.level	over	b:ema.2.level
 	;
 
 	action

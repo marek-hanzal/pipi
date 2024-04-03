@@ -2,6 +2,31 @@
 
 This is a cheat sheet for the PiPi Script Language. For examples, see for example [US500 strategies](us500%2F15min).
 
+## Action
+
+This describes available options in actions.
+
+### profit
+
+Profit sets profit price. By itself it does nothing else (for entering a trade, you have to specify `long` or `short` keyword).
+
+> At least value must be set, the rest is optional.
+
+**Code:**
+`profit				[value]([modifier]) [+ | -] [value]([modifier])`
+
+**Description:**
+- profit	    - the keyword
+- [value]	    - may be constant (`0.3`) or value from a context (`s:day-fibbonachi.100.low`)
+- ([modifier])  - optional modifier (for example `s:day.size(0.5)`); this multiplies the value by the modifier
+- [+ | -]	    - optionally you can calculate values (for example `s:day.size(0.5) + 0.3`)
+
+**Example:**
+`profit				s:day-fibbonachi.100.low	-	s:day.size(0.5)`
+
+**Meaning:**
+Set `profit` to a base value of 100% fibbonachi level's low (`s:day-fibbonachi.100.low`), but subtracted by a modifier of half (`(0.5)`) of the day's size (`s:day.size`). 
+
 ## Context
 
 - `s:` for state - this is a state, which persists between bars
@@ -42,7 +67,12 @@ There is a special global context, which indicators use for configuration and yo
 - [left] or [right] [level].[value]; for example `value b:candle.low >= s:day-fibbonachi.100.low`
 - This means - candle's low must be greater or equal to fibb 100% level's low
 
-## Day High/Low
+## Indicators
+
+Not everything is an indicator in the true sense, it could be just value provider (for example Trade only provides information about current
+position).
+
+### Day High/Low
 
 Tracks daily high and low prices.
 
@@ -62,7 +92,7 @@ Tracks daily high and low prices.
   						the reason is to keep levels somehow in sync with day's price range 
 - `s:day.size`        - day's price range
 
-## Day Fibbonachi
+### Day Fibbonachi
 
 This one works in cooperation with day's low/high. Tracks fibbonachi levels during the day.
 
@@ -78,7 +108,7 @@ This one works in cooperation with day's low/high. Tracks fibbonachi levels duri
 - `s:day-fibbonachi.70`  - 78.6%
 - `s:day-fibbonachi.100` - day's low
 
-## Candle
+### Candle
 
 Tracks a lot of information about a candle.
 
@@ -94,7 +124,7 @@ _No config required._
 **Values:**
 - `b:candle.[open/high/low/close]`      - candle's OHLC; for example `b:candle.low`
 
-## Trade
+### Trade
 
 Here are interesting things about current trade.
 
@@ -114,7 +144,7 @@ _No config needed._
 - `s:trade.loss`                - loss price
 - `s:trade.length`              - duration of a trade
 
-## MACD
+### MACD
 
 You know this one.
 
@@ -141,7 +171,7 @@ You know this one.
 - `b:macd.short-dmz`           - short signal in DMZ zone
 - `b:macd.short`               - short signal outside DMZ zone
 
-## SuperTrend
+### SuperTrend
 
 SuperTrend uses fast and slow ATR to calculate trend; you may pick, which one you want to use.
 
@@ -171,7 +201,7 @@ Both fast and slow are useful to confirm each other's "real" trend.
 - `b:super-trend.up`                   - both fast and slow are uptrend
 - `b:super-trend.down`                 - both fast and slow are downtrend
 
-## CCI
+### CCI
 
 Commodity Channel Index, default TradingView implementation.
 

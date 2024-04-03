@@ -6,6 +6,9 @@ init
 		value	s:#.factor				0.3
 
 		value	s:#.cci.length			25
+
+		// This is custom value, so "constants" are not placed in the code itself
+		value	s:#.long-trade			10
 	;
 ;
 
@@ -52,5 +55,16 @@ pattern
 		profit				s:day-fibbonachi.70.high
 		loss				s:day-fibbonachi.0.high		+	s:day.size(0.5)
 		short
+	;
+;
+
+//	Simple check to kill a long running trades
+pattern
+	candle
+		value	s:trade.length	>	s:#.long-trade
+	;
+
+	action
+		close
 	;
 ;

@@ -120,9 +120,9 @@ Represented by `b:` prefix. Bar variables are used only temporarily on the curre
 Because this system is hacked using PineScript which enforces types, they're propagated to the language itself.
 
 **There are three types exposed:**
--  flag   -  boolean value; usually helper stuff from indicators (like if a candle is above a level or is there supertrend)
--  value  -  float value; all the values you may think of - candle's OHLC, day's levels, fibbo and much more
--  name   -  good old string value (rarely used) - _errrh... not sure, why I've put support for them here_
+-  **flag**   -  boolean value; usually helper stuff from indicators (like if a candle is above a level or is there supertrend)
+-  **value**  -  float value; all the values you may think of - candle's OHLC, day's levels, fibbo and much more
+-  **name**   -  good old string value (rarely used) - _errrh... not sure, why I've put support for them here_
 
 ## Language
 

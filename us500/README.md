@@ -1,7 +1,7 @@
 # US500 Pepperstone
 
 Here are strategies and timeframes for the **_US500 Pepperstone_** index. Individual samples may not be most profitable, but each
-timeframe folder contains `_strategy` folder, which is currently the most profitable strategy for that timeframe.
+timeframe folder contains `_strategy` folder, which is currently _the most profitable strategy_ for that timeframe.
 
 ## Current results - 15mins
 

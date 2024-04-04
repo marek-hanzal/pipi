@@ -586,6 +586,15 @@ candle_match(Contexts contexts, Rule rule) =>
 				"=="	=> _left ==	_right
 				"!="	=> _left !=	_right
 
+		"cross"	=>
+			_left	=	value_of(rule.key,		contexts)
+			_right	=	value_of(rule.value,	contexts)
+
+			switch rule.operator
+				"over"		=>	ta.crossover(_left, _right)
+				"under"		=>	ta.crossunder(_left, _right)
+
+
 		=> true
 
 candle_match(Contexts contexts, Candle candle) =>
@@ -779,20 +788,28 @@ parse_pattern_candle_value(string[] rule, Candle candle) =>
 	if _key.size() == 3 and rule.size() == 3
 		candle.rule.push(Rule.new("value", _key, rule.get(1), parse_key(rule.get(2))))
 
+parae_pattern_candle_cross(string[] rule, Candle candle) =>
+	candle.rule.push(Rule.new("cross", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
+
 parse_pattern_candle(string line, Candle candle) =>
 	_rule = str.split(line, "\t")
 	switch _rule.get(0)
-		"flag" =>
+		"flag"		=>
 			_rule.shift()
 			parse_pattern_candle_flag(_rule, true, candle)
 
-		"!flag" =>
+		"!flag"		=>
 			_rule.shift()
 			parse_pattern_candle_flag(_rule, false, candle)
 
-		"value" =>
+		"value"		=>
 			_rule.shift()
 			parse_pattern_candle_value(_rule, candle)
+
+		"cross" =>
+			_rule.shift()
+			if _rule.size() == 3
+				parae_pattern_candle_cross(_rule, candle)
 
 	candle
 
@@ -1475,4 +1492,3 @@ bgcolor(contexts_bar_flag(_contexts, "session", "open") ? na :color.new(color.gr
 plot(contexts_bar_level(_contexts, "ema", "1").level, "EMA-1", color = color.blue,		display = display.none)
 plot(contexts_bar_level(_contexts, "ema", "2").level, "EMA-2", color = color.orange,	display = display.none)
 plot(contexts_bar_level(_contexts, "ema", "3").level, "EMA-3", color = color.purple,	display = display.none)
-

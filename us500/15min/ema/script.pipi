@@ -11,6 +11,9 @@ init
 
 		value	s:#.structure.length	30
 		value	s:#.structure.deviation	3
+
+		value	s:#.trends.factor		0.5
+		value	s:#.trends.touches		2
 	;
 ;
 

@@ -183,6 +183,7 @@ _No config required._
 **Values:**
 - `b:candle.index`      				      - bar index of the candle
 - `b:candle.body`      				          - candle body size
+- `b:candle.length`   				          - high - low
 - `b:candle.top`      				          - candle's top (open/close, regardless color)
 - `b:candle.bottom`      				      - candle's bottom (open/close, regardless color)
 - `b:candle.[open | high | low | close]`      - candle's OHLC; for example `b:candle.low`

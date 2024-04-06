@@ -172,11 +172,20 @@ Tracks a lot of information about a candle.
 _No config required._
 
 **Flags:**
-- `b:candle.red`       - red candle
-- `b:candle.green`     - green candle
+- `b:candle.red`       			- red candle
+- `b:candle.green`     		    - green candle
+- `b:candle.bull-engulfing`     - green candle with high > previous high and larger body
+- `b:candle.bear-engulfing`     - red candle with low < previous low and larger body
+- `b:candle.[open | high | low | close]-[lt | gt]-[open | high | low | close]`       - `[OHLC]` > previous `[OHLC]`; must be same pair (like `close-gt-close` or `high-lt`high`)
+- `b:candle.body-gt-body`       - current body is larger than previous body
+- `b:candle.body-lt-body`       - current body is smaller than previous body
 
 **Values:**
-- `b:candle.[open/high/low/close]`      - candle's OHLC; for example `b:candle.low`
+- `b:candle.index`      				      - bar index of the candle
+- `b:candle.body`      				          - candle body size
+- `b:candle.top`      				          - candle's top (open/close, regardless color)
+- `b:candle.bottom`      				      - candle's bottom (open/close, regardless color)
+- `b:candle.[open | high | low | close]`      - candle's OHLC; for example `b:candle.low`
 
 ### Trade
 
@@ -300,3 +309,18 @@ Default TradingView EMA using three lengths (if you want).
 - `b:ema.1`              	 - EMA level for length 1
 - `b:ema.2`              	 - EMA level for length 2
 - `b:ema.3`              	 - EMA level for length 3
+
+### Structure
+
+This is simple structure detection; it's more dynamic, than day/low high, also supports it's fibbonachi levels; this indicator
+may be somehow less accurate as it depends on user's input.
+
+**Context**: `structure`
+
+**Config:**
+- `s:#.structure.length`		- lookback length
+- `s:#.structure.deviation`		- how/low deviation for structure change detection
+
+**Levels:**
+- `s:low`              	 		- current structure's low
+- `s:high`              	 	- current structure's high

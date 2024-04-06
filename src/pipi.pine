@@ -44,7 +44,17 @@ import TradingView/ta/7 as ta7
 //  ====================================================================================================================================================
 
 const string	_script_hint	=	"You should pass your strategy script here, documentation is on the project's GitHub page (see indicator homepage for details)."
-var	string		i_script		=	input.text_area("", "Script",	display = display.none,	tooltip = _script_hint)
+var	string		i_script		=	input.text_area("", "- 😎 Script 😎 -",	display = display.none,	tooltip = _script_hint)
+
+const string	group_plots		=	"- 📈 Plots 📈 -"
+var bool		i_day_level		=	input.bool(	true,	"Day Low/High",		group = group_plots, display = display.none,	tooltip = "Displays low/how of the current day")
+var bool		i_day_fibb		=	input.bool(	true,	"Day Fibbonachi",	group = group_plots, display = display.none,	tooltip = "Displays days fibbonachi levels, including zones")
+var bool		i_super_trend_1	=	input.bool(	true,	"Fast SuperTrend",	group = group_plots, display = display.none,	tooltip = "Show fast SuperTrends")
+var bool		i_super_trend_2	=	input.bool(	true,	"Slow SuperTrend",	group = group_plots, display = display.none,	tooltip = "Show slow SuperTrends")
+var bool		i_structures	=	input.bool(	true,	"Structures",		group = group_plots, display = display.none,	tooltip = "Show local structures (faster, than fibbonachi)")
+var bool		i_ema_1			=	input.bool(	true,	"EMA 1",			group = group_plots, display = display.none,	inline = "ema")
+var bool		i_ema_2			=	input.bool(	true,	"EMA 2",			group = group_plots, display = display.none,	inline = "ema")
+var bool		i_ema_3			=	input.bool(	true,	"EMA 3",			group = group_plots, display = display.none,	inline = "ema")
 
 //  ====================================================================================================================================================
 //      Functions
@@ -1128,6 +1138,7 @@ use_candle(Contexts contexts) =>
 	_high		=	math.max(open, close)
 	_body		=	_high - _low
 
+	context_bar(_context, "index",			bar_index)
 	context_bar(_context, "green",			_is_green)
 	context_bar(_context, "red",			_is_red)
 	context_bar(_context, "bull-engulfing",	_is_green	and	high	> high[1]	and (_body > _body[1]))
@@ -1142,6 +1153,9 @@ use_candle(Contexts contexts) =>
 	context_bar(_context, "high-lt-high",	high	< high[1])
 	context_bar(_context, "low-lt-low",		low		< low[1])
 	context_bar(_context, "close-lt-close",	close	< close[1])
+
+	context_bar(_context, "body-gt-body",	_body > _body[1])
+	context_bar(_context, "body-tt-body",	_body < _body[1])
 
 	context_bar(_context, "open",			open)
 	context_bar(_context, "high",			high)
@@ -1330,6 +1344,61 @@ use_ema(Contexts contexts) =>
 	use_context(contexts, _context)
 
 //  ====================================================================================================================================================
+//      Structures
+//			-	Local structure provider
+//  ====================================================================================================================================================
+
+use_structure(Contexts contexts) =>
+	var Context				_context		=	context_create("structure")
+	var float[]				_levels     	=	array.new<float>()
+	map<string, Level>		_structure		=	map.new<string, Level>()
+	float 					_factor			=	contexts_state_value(contexts, "day", "factor", 0)
+	var int					_i_length		=	int(contexts_state_value(	contexts, "#", "structure.length",		20))
+	var float				_i_deviation	=	int(contexts_state_value(	contexts, "#", "structure.deviation",	0))
+	var int					_lowest     	= 1
+	var int					_highest    	= 1
+	float					_level_low		= na
+	float					_level_high		= na
+
+	_deviation   	= _i_deviation * syminfo.mintick
+	_lowest_depth	= -ta.lowestbars(_i_length)
+	_highest_depth  = -ta.highestbars(_i_length)
+
+	_lowest          += 1
+	_highest         += 1
+
+	_trend			= ta.barssince(not (_highest == _highest_depth or high[_highest_depth] - high > _deviation)) > ta.barssince(not (_lowest == _lowest_depth or low - low[_lowest_depth] > _deviation))
+
+	if _lowest != _lowest_depth and (not _trend[1] or low[_lowest] > low[_lowest_depth])
+		_lowest:= _lowest_depth < _highest ? _lowest_depth : 0
+
+	if _highest != _highest_depth and (_trend[1] or high[_highest] < high[_highest_depth])
+		_highest:= _highest_depth < _lowest ? _highest_depth : 0
+
+	if _trend != _trend[1]
+		_index	= _trend	?	_highest		:	_lowest
+		_value	= _trend	?	high[_index]	:	low[_index]
+
+		if array.size(_levels) == 2
+			array.shift(_levels)
+
+		array.push(_levels, _value)
+
+	for _level in _levels
+		if na(_level_low) or _level < _level_low
+			_level_low:= _level
+			level_push(_structure, "low", _level, _factor)
+
+		if na(_level_high) or _level > _level_high
+			_level_high:= _level
+			level_push(_structure, "high", _level, _factor)
+
+	if _structure.size() > 0
+		context_state_levels(_context, _structure)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
 //      Main Entry
 //			This piece manages whole workflow of the indicator and how it works (high-level).
 //  ====================================================================================================================================================
@@ -1371,6 +1440,7 @@ main(string script) =>
 	use_super_trend(_contexts)
 	use_cci(_contexts)
 	use_ema(_contexts)
+	use_structure(_contexts)
 
 	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
 	use_candle(_contexts)
@@ -1400,8 +1470,8 @@ _contexts	=	_result.contexts
 //      Render day's low and high
 //  ====================================================================================================================================================
 
-plot(contexts_state_level(_contexts, "day", "level").high,	"Day High",	style =	plot.style_steplinebr,	linewidth = 2,	display = display.none, color = color.teal)
-plot(contexts_state_level(_contexts, "day", "level").low,	"Day Low",	style =	plot.style_steplinebr,	linewidth = 2,	display = display.none, color = color.fuchsia)
+plot(i_day_level ? contexts_state_level(_contexts, "day", "level").high	:	na,	"Day High",	style =	plot.style_steplinebr,	linewidth = 2,	display = display.pane, color = color.teal)
+plot(i_day_level ? contexts_state_level(_contexts, "day", "level").low	:	na,	"Day Low",	style =	plot.style_steplinebr,	linewidth = 2,	display = display.pane, color = color.fuchsia)
 
 //  ====================================================================================================================================================
 //      Render Fibbonachi levels
@@ -1414,39 +1484,46 @@ _fibb_alpha_2_background	=	85
 _no_fill					=	contexts_bar_flag(_contexts, "day", "change", false)
 
 _color_0		=	color.new(color.red, _fibb_alpha_1_background)
-_plot_0_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "0").low,		"Fibb - 0 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_0, _fibb_alpha_1_linw), 		display = display.pane)
-_plot_0_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "0").high,		"Fibb - 0 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_0, _fibb_alpha_1_linw),		display = display.pane)
+_plot_0_1 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "0").low	:	na,		"Fibb - 0 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_0, _fibb_alpha_1_linw), 		display = display.pane)
+_plot_0_2 		=	plot(i_day_fibb ?contexts_state_level(_contexts, "day-fibbonachi", "0").high	:	na,		"Fibb - 0 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_0, _fibb_alpha_1_linw),		display = display.pane)
 fill(_plot_0_1, _plot_0_2, _no_fill ? na : _color_0,	"Fibb - 0 (fill)")
 
 _color_20		=	color.new(color.yellow, _fibb_alpha_1_background)
-_plot_20_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "20").low,		"Fibb - 23.6 (low)", 	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_20, _fibb_alpha_1_linw), 	display = display.pane)
-_plot_20_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "20").high,		"Fibb - 23.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_20, _fibb_alpha_1_linw),		display = display.pane)
+_plot_20_1 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "20").low	:	na,		"Fibb - 23.6 (low)", 	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_20, _fibb_alpha_1_linw), 	display = display.pane)
+_plot_20_2 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "20").high	:	na,		"Fibb - 23.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_20, _fibb_alpha_1_linw),		display = display.pane)
 fill(_plot_20_1, _plot_20_2, _no_fill ? na : _color_20,	"Fibb - 23.6 (fill)")
 
 _color_30		=	color.new(color.orange, _fibb_alpha_2_background)
-_plot_30_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "30").low,		"Fibb - 38.2 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
-_plot_30_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "30").high,		"Fibb - 38.2 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
+_plot_30_1 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "30").low	:	na,		"Fibb - 38.2 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
+_plot_30_2 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "30").high	:	na,		"Fibb - 38.2 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
 fill(_plot_30_1, _plot_30_2, _no_fill ? na : _color_30,	"Fibb - 38.2 (fill)")
 
 _color_50		=	color.new(color.green, _fibb_alpha_1_background)
-_plot_50_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "50").low,		"Fibb - 50 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw),		display = display.pane)
-_plot_50_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "50").high,		"Fibb - 50 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw), 	display = display.pane)
+_plot_50_1 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "50").low	:	na,		"Fibb - 50 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw),		display = display.pane)
+_plot_50_2 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "50").high	:	na,		"Fibb - 50 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw), 	display = display.pane)
 fill(_plot_50_1, _plot_50_2, _no_fill ? na : _color_50,	"Fibb - 50 (fill)")
 
 _color_60		=	color.new(color.teal, _fibb_alpha_2_background)
-_plot_60_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "60").low,		"Fibb - 61.8 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
-_plot_60_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "60").high,		"Fibb - 61.8 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
+_plot_60_1 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "60").low	:	na,		"Fibb - 61.8 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
+_plot_60_2 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "60").high	:	na,		"Fibb - 61.8 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
 fill(_plot_60_1, _plot_60_2, _no_fill ? na : _color_60,	"Fibb - 61.8 (fill)")
 
 _color_70		=	color.new(color.aqua, _fibb_alpha_1_background)
-_plot_70_1 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "70").low,		"Fibb - 78.6 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw),		display = display.pane)
-_plot_70_2 		=	plot(contexts_state_level(_contexts, "day-fibbonachi", "70").high,		"Fibb - 78.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw), 	display = display.pane)
+_plot_70_1 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "70").low	:	na,		"Fibb - 78.6 (low)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw),		display = display.pane)
+_plot_70_2 		=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "70").high	:	na,		"Fibb - 78.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw), 	display = display.pane)
 fill(_plot_70_1, _plot_70_2, _no_fill ? na : _color_70,	"Fibb - 78.6 (fill)")
 
 _color_100		=	color.new(color.green, _fibb_alpha_1_background)
-_plot_100_1 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").low,		"Fibb - 100 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
-_plot_100_2 	=	plot(contexts_state_level(_contexts, "day-fibbonachi", "100").high,		"Fibb - 100 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
+_plot_100_1 	=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "100").low	:	na,		"Fibb - 100 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
+_plot_100_2 	=	plot(i_day_fibb ? contexts_state_level(_contexts, "day-fibbonachi", "100").high	:	na,		"Fibb - 100 (high)",	linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
 fill(_plot_100_1, _plot_100_2, _no_fill ? na : _color_100,	"Fibb - 100 (fill)")
+
+//  ====================================================================================================================================================
+//      Render Local Structure
+//  ====================================================================================================================================================
+
+plot(i_structures	?	contexts_state_level(_contexts, "structure", "low").level	:	na,		"Structure low",	style = plot.style_line, linewidth = 3, 	color = color.new(color.fuchsia,	60),	display = display.pane)
+plot(i_structures	?	contexts_state_level(_contexts, "structure", "high").level	:	na,		"Structure high",	style = plot.style_line, linewidth = 3, 	color = color.new(color.teal,		60),	display = display.pane)
 
 //  ====================================================================================================================================================
 //      Render Profit/Loss for trades
@@ -1464,11 +1541,11 @@ fill(_profit_short, _loss_short, title = "Short Background", color = color.new(c
 //      Render SuperTrend
 //  ====================================================================================================================================================
 
-plot(contexts_bar_flag(_contexts, "super-trend", "fast.up")		?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Uptrend",		linewidth = 2,	style = plot.style_linebr,	color = color.new(color.navy, 50),		display = display.none)
-plot(contexts_bar_flag(_contexts, "super-trend", "fast.down")	?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Downtrend",	linewidth = 2,	style = plot.style_linebr,	color = color.new(color.maroon, 50),	display = display.none)
+plot(i_super_trend_1 and	contexts_bar_flag(_contexts, "super-trend", "fast.up")		?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Uptrend",		linewidth = 2,	style = plot.style_linebr,	color = color.new(color.navy, 50),		display = display.pane)
+plot(i_super_trend_1 and	contexts_bar_flag(_contexts, "super-trend", "fast.down")	?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Downtrend",	linewidth = 2,	style = plot.style_linebr,	color = color.new(color.maroon, 50),	display = display.pane)
 
-plot(contexts_bar_flag(_contexts, "super-trend", "slow.up")		?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Uptrend",		linewidth = 3,	style = plot.style_linebr,	color = color.new(color.navy, 50),		display = display.none)
-plot(contexts_bar_flag(_contexts, "super-trend", "slow.down")	?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Downtrend",	linewidth = 3,	style = plot.style_linebr,	color = color.new(color.maroon, 50),	display = display.none)
+plot(i_super_trend_2 and	contexts_bar_flag(_contexts, "super-trend", "slow.up")		?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Uptrend",		linewidth = 3,	style = plot.style_linebr,	color = color.new(color.navy, 50),		display = display.pane)
+plot(i_super_trend_2 and	contexts_bar_flag(_contexts, "super-trend", "slow.down")	?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Downtrend",	linewidth = 3,	style = plot.style_linebr,	color = color.new(color.maroon, 50),	display = display.pane)
 
 //  ====================================================================================================================================================
 //      Render Trade flags
@@ -1489,6 +1566,6 @@ bgcolor(contexts_bar_flag(_contexts, "session", "open") ? na :color.new(color.gr
 //      Render EMA
 //  ====================================================================================================================================================
 
-plot(contexts_bar_level(_contexts, "ema", "1").level, "EMA-1", color = color.blue,		display = display.none)
-plot(contexts_bar_level(_contexts, "ema", "2").level, "EMA-2", color = color.orange,	display = display.none)
-plot(contexts_bar_level(_contexts, "ema", "3").level, "EMA-3", color = color.purple,	display = display.none)
+plot(i_ema_1 ? contexts_bar_level(_contexts, "ema", "1").level : na, "EMA-1", color = color.blue,		display = display.pane)
+plot(i_ema_2 ? contexts_bar_level(_contexts, "ema", "2").level : na, "EMA-2", color = color.orange,	display = display.pane)
+plot(i_ema_3 ? contexts_bar_level(_contexts, "ema", "3").level : na, "EMA-3", color = color.purple,	display = display.pane)

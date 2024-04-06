@@ -48,14 +48,14 @@ var	string		i_script			=	input.text_area("", "- 😎 Script 😎 -",	display = d
 
 const string	group_plots			=	"- 📈 Plots 📈 -"
 var bool		i_day_level			=	input.bool(	true,	"Day Low/High",			group = group_plots, display = display.none,	inline = "day")
-var bool		i_day_fibb			=	input.bool(	true,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "day",			tooltip = "Display day's low/high + it's fibbonachi levels")
+var bool		i_day_fibb			=	input.bool(	false,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "day",			tooltip = "Display day's low/high + it's fibbonachi levels")
 var bool		i_super_trend_1		=	input.bool(	true,	"Fast SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show fast SuperTrends")
 var bool		i_super_trend_2		=	input.bool(	true,	"Slow SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show slow SuperTrends")
 var bool		i_structures		=	input.bool(	true,	"Structures",			group = group_plots, display = display.none,	inline = "structure")
-var bool		i_structure_fibb	=	input.bool(	true,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "structure",	tooltip = "Displays local structure + it's fibbonachi levels, including zones")
-var bool		i_ema_1				=	input.bool(	true,	"EMA 1",				group = group_plots, display = display.none,	inline = "ema")
-var bool		i_ema_2				=	input.bool(	true,	"EMA 2",				group = group_plots, display = display.none,	inline = "ema")
-var bool		i_ema_3				=	input.bool(	true,	"EMA 3",				group = group_plots, display = display.none,	inline = "ema")
+var bool		i_structure_fibb	=	input.bool(	false,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "structure",	tooltip = "Displays local structure + it's fibbonachi levels, including zones")
+var bool		i_ema_1				=	input.bool(	false,	"EMA 1",				group = group_plots, display = display.none,	inline = "ema")
+var bool		i_ema_2				=	input.bool(	false,	"EMA 2",				group = group_plots, display = display.none,	inline = "ema")
+var bool		i_ema_3				=	input.bool(	false,	"EMA 3",				group = group_plots, display = display.none,	inline = "ema")
 
 //  ====================================================================================================================================================
 //      Functions
@@ -1424,6 +1424,15 @@ use_structure_fibbonachi(Contexts contexts) =>
 	use_context(contexts, _context)
 
 //  ====================================================================================================================================================
+//      Track current trends / structure levels
+//  ====================================================================================================================================================
+
+track_trends(Contexts[] candles, Contexts contexts) =>
+	float	_factor		=	0.3
+
+	true
+
+//  ====================================================================================================================================================
 //      Main Entry
 //			This piece manages whole workflow of the indicator and how it works (high-level).
 //  ====================================================================================================================================================
@@ -1431,17 +1440,17 @@ use_structure_fibbonachi(Contexts contexts) =>
 //	@function	Main entry point of this indicator; even without any plotting, it could be used for strategy testing using TradingView built-in tester
 main(string script) =>
 	//	Contexts used in this indicator
-	var Contexts				_contexts	=	contexts_create()
+	var Contexts	_contexts	=	contexts_create()
 	//	Candles (contexts) used to detect patterns
-	var array<Contexts>			_candles	=	array.new<Contexts>()
+	var Contexts[]	_candles	=	array.new<Contexts>()
 	//	Limit number of tracked candles for pattern analytics; this number should be reasonables
 	//		as it could take a lot of allocated memory
 	//		-	Lower (<= 5min) timeframes may need more tracked candles
 	//		-	Higher (> 5min) timeframes may need much less tracked candles
 	//
 	//	Also keep in mind that when you use non-strict pattern matching, you may need much more candles
-	const int					_limit		=	50
-	var Script					_script		=	parse(script)
+	const int		_limit		=	50
+	var Script		_script		=	parse(script)
 
 	//	This ensures all the bar-only variables are dropped before processing new bar
 	context_tick(_contexts)
@@ -1458,18 +1467,18 @@ main(string script) =>
 	//		-	You may want to use "use_day_fibbonachi" results, thus yours "provider" must came after
 	//		-	Communication between individual producers must go through context, so all variables are accessible from PiPi Script
 	//		-	You can simply override default values, if you want - you have to provide all the variables (in short API) the original provider has
-	use_day_low_high(_contexts)
-	use_day_fibbonachi(_contexts)
-	use_session(_contexts)
-	use_macd(_contexts)
-	use_super_trend(_contexts)
-	use_cci(_contexts)
-	use_ema(_contexts)
-	use_structure(_contexts)
-	use_structure_fibbonachi(_contexts)
+	use_day_low_high			(_contexts)
+	use_day_fibbonachi			(_contexts)
+	use_session					(_contexts)
+	use_macd					(_contexts)
+	use_super_trend				(_contexts)
+	use_cci						(_contexts)
+	use_ema						(_contexts)
+	use_structure				(_contexts)
+	use_structure_fibbonachi	(_contexts)
 
 	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
-	use_candle(_contexts)
+	use_candle					(_contexts)
 
 	//	Add copy of current snapshot to candles, so one can ask for all the states/values/whatever on that candle
 	//		Just not that it's a current snapshot not altered by a script
@@ -1482,6 +1491,9 @@ main(string script) =>
 
 	//	"External" trade manager to keep everything in sync
 	trader(_contexts)
+
+	//	Here are all methods using current candles for calculating this based on current candles
+	track_trends				(_candles, _contexts)
 
 	Result.new(_contexts)
 

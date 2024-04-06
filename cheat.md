@@ -315,6 +315,8 @@ Default TradingView EMA using three lengths (if you want).
 This is simple structure detection; it's more dynamic, than day/low high, also supports it's fibbonachi levels; this indicator
 may be somehow less accurate as it depends on user's input.
 
+Structures enables tracking candles "in the void" - those in current extremes (above/below structure).
+
 **Context**: `structure`
 
 **Config:**

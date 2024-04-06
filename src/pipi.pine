@@ -183,6 +183,12 @@ type Script
 	Init				init
 	Pattern[]			pattern
 
+type Test
+	Level	level
+	int		index
+	int		last
+	int		count
+
 //	@type				This is a result from the main indicator fucntion
 //	@field	contexts	All the contexts produced by the indicator
 type Result
@@ -1168,6 +1174,7 @@ use_candle(Contexts contexts) =>
 	context_bar(_context, "low",			low)
 	context_bar(_context, "close",			close)
 	context_bar(_context, "size",			_body)
+	context_bar(_context, "length",			high - low)
 
 	context_bar(_context, "bottom",			_low)
 	context_bar(_context, "top",			_high)
@@ -1430,34 +1437,35 @@ use_structure_fibbonachi(Contexts contexts) =>
 //      Track current trends / structure levels
 //  ====================================================================================================================================================
 
-type Test
-	Level	level
-	int		index
-	int		last
-	int		count
-
 track_trends(Contexts[] candles, Contexts contexts) =>
-	float	_factor		=	0.5
-	int		_touches	=	1
+	float	_factor		=	contexts_state_value(contexts, "#", "trends.factor", 0.5) / 10
+	int		_touches	=	int(contexts_state_value(contexts, "#", "trends.touches", 4))
 
 	//	Currently tested set of all candles
 	Test[]	_low		=	array.new<Test>()
+	Test[]	_middle		=	array.new<Test>()
 	Test[]	_high		=	array.new<Test>()
 
 	//	Candles with highest level counts (2+)
-	Test	_low_test	=	na
-	Test	_high_test	=	na
+	Test	_low_test		=	na
+	Test	_middle_test	=	na
+	Test	_high_test		=	na
 
 	//	Count number of touches for lows & highs
 	for __candle in candles
-		_bottom		=	contexts_bar_value(__candle, "candle", "bottom")
-		_top		=	contexts_bar_value(__candle, "candle", "top")
-		_index		=	int(contexts_bar_value(__candle, "candle", "index"))
-		_low_level	=	level("low",	_bottom,	_factor)
-		_high_level	=	level("high",	_top,		_factor)
+		_bottom			=	contexts_bar_value(__candle, "candle", "bottom")
+		_top			=	contexts_bar_value(__candle, "candle", "top")
+		_size			=	contexts_bar_value(__candle, "candle", "size")
+		_index			=	int(contexts_bar_value(__candle, "candle", "index"))
+		_low_level		=	level("low",	_bottom,	_size * _factor)
+		_high_level		=	level("high",	_top,		_size * _factor)
 
 		if _low.size() == 0
 			_low.push(Test.new(_low_level, _index, _index, 0))
+
+		if _middle.size() == 0
+			_middle.push(Test.new(_low_level,	_index, _index, 0))
+			_middle.push(Test.new(_high_level,	_index, _index, 0))
 
 		if _high.size() == 0
 			_high.push(Test.new(_high_level, _index, _index, 0))
@@ -1473,6 +1481,24 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 		if not _new_low
 			_low.push(Test.new(_low_level, _index, _index, 1))
 
+		_new_middle=	false
+		for __middle in _middle
+			if level_inside(__middle.level, _bottom)
+				_new_middle	:=	true
+				__middle.count	+=	1
+				__middle.last	:=	_index
+				continue
+
+			if level_inside(__middle.level, _top)
+				_new_middle	:=	true
+				__middle.count	+=	1
+				__middle.last	:=	_index
+				continue
+
+		if not _new_middle
+			_middle.push(Test.new(_low_level,	_index, _index, 1))
+			_middle.push(Test.new(_high_level,	_index, _index, 1))
+
 		_new_high=	false
 		for __high in _high
 			if level_inside(__high.level, _top)
@@ -1484,57 +1510,61 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 		if not _new_high
 			_high.push(Test.new(_high_level, _index, _index, 1))
 
-	//	Search for current low/high touches (more than >= 2)
+	//	Search for current low/high touches
 	for __low in _low
-		if __low.count > _touches and na(_low_test)
+		if __low.count >= _touches and na(_low_test)
 			_low_test:=	__low
 			continue
 
 		if na(_low_test)
 			continue
 
-		if __low.count > _touches and __low.last > _low_test.last
+		if __low.count >= _touches and __low.last > _low_test.last
 			_low_test:=	__low
 
+	for __middle in _middle
+		if __middle.count >= _touches and na(_middle_test)
+			_middle_test:=	__middle
+			continue
+
+		if na(_middle_test)
+			continue
+
+		if __middle.count >= _touches and __middle.last > _middle_test.last
+			_middle_test:=	__middle
+
 	for __high in _high
-		if __high.count > _touches and na(_high_test)
+		if __high.count >= _touches and na(_high_test)
 			_high_test:=	__high
 			continue
 
 		if na(_high_test)
 			continue
 
-		if __high.count > _touches and __high.last > _high_test.last
+		if __high.count >= _touches and __high.last > _high_test.last
 			_high_test:=	__high
 
 	//	------------------------------
 	//	DEBUG ZONE
 	//	------------------------------
 	var	line _low_line		=	na
-	var	line _low_line_1	=	na
-	var	line _low_line_2	=	na
-
+	var	line _middle_line	=	na
 	var	line _high_line		=	na
-	var	line _high_line_1	=	na
-	var	line _high_line_2	=	na
 
 	if not na(_low_test)
 		line.delete(_low_line)
-		line.delete(_low_line_1)
-		line.delete(_low_line_2)
 
-		_low_line	:=	line.new(_low_test.index, _low_test.level.level,	_low_test.index + 1, _low_test.level.level, extend = extend.right, color = color.red)
-		_low_line_1	:=	line.new(_low_test.index, _low_test.level.low,		_low_test.index + 1, _low_test.level.low,	extend = extend.right, color = color.new(color.red, 75))
-		_low_line_2	:=	line.new(_low_test.index, _low_test.level.high,		_low_test.index + 1, _low_test.level.high,	extend = extend.right, color = color.new(color.red, 75))
+		_low_line		:=	line.new(_low_test.index,		_low_test.level.level,		_low_test.index + 1,	_low_test.level.level, 		extend = extend.right, color = color.red)
+
+	if not na(_middle_test)
+		line.delete(_middle_line)
+
+		_middle_line	:=	line.new(_middle_test.index, 	_middle_test.level.level,	_middle_test.index + 1, _middle_test.level.level, 	extend = extend.right, color = color.orange)
 
 	if not na(_high_test)
 		line.delete(_high_line)
-		line.delete(_high_line_1)
-		line.delete(_high_line_2)
 
-		_high_line		:=	line.new(_high_test.index, _high_test.level.level,		_high_test.index + 1, _high_test.level.level,	extend = extend.right, color = color.green)
-		_high_line_1	:=	line.new(_high_test.index, _high_test.level.low,		_high_test.index + 1, _high_test.level.low,		extend = extend.right, color = color.new(color.green, 75))
-		_high_line_2	:=	line.new(_high_test.index, _high_test.level.high,		_high_test.index + 1, _high_test.level.high,	extend = extend.right, color = color.new(color.green, 75))
+		_high_line		:=	line.new(_high_test.index, 		_high_test.level.level,		_high_test.index + 1, 	_high_test.level.level,		extend = extend.right, color = color.green)
 	//	------------------------------
 	//	DEBUG ZONE
 	//	------------------------------

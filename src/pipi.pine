@@ -1047,6 +1047,33 @@ script(Script script, array<Contexts> candles, Contexts contexts) =>
 		action(_pattern.action, contexts)
 
 //  ====================================================================================================================================================
+//      Rendering stuff
+//  ====================================================================================================================================================
+
+render_level(string name, Level level, int index, color color) =>
+	var map<string, line>	_lines = map.new<string, line>()
+	var map<string, box>	_boxes = map.new<string, box>()
+
+	string	_name_low	=	name + ".low"
+	string	_name_level	=	name + ".level"
+	string	_name_high	=	name + ".high"
+	string	_name_box	=	name
+
+	line.delete(_lines.get(_name_high))
+	line.delete(_lines.get(_name_level))
+	line.delete(_lines.get(_name_low))
+
+	box.delete(_boxes.get(_name_box))
+
+	_lines.put(_name_low,	line.new(index,	level.low,		index + 1,	level.low, 		extend = extend.right, color = color.new(color, 85), width = 2))
+	_lines.put(_name_level,	line.new(index,	level.level,	index + 1,	level.level,	extend = extend.right, color = color.new(color, 25), width = 1))
+	_lines.put(_name_high,	line.new(index,	level.high,		index + 1,	level.high,		extend = extend.right, color = color.new(color, 85), width = 2))
+
+	_boxes.put(_name_box,	box.new(index, level.high, index + 1, level.low, extend = extend.right, border_color = na, border_width = na, bgcolor = color.new(color, 95)))
+
+	true
+
+//  ====================================================================================================================================================
 //      Default global values
 //  ====================================================================================================================================================
 
@@ -1438,7 +1465,7 @@ use_structure_fibbonachi(Contexts contexts) =>
 //  ====================================================================================================================================================
 
 track_trends(Contexts[] candles, Contexts contexts) =>
-	float	_factor		=	contexts_state_value(contexts, "#", "trends.factor", 0.5) / 10
+	float	_factor		=	contexts_state_value(contexts, "#", "trends.factor", 0.4)
 	int		_touches	=	int(contexts_state_value(contexts, "#", "trends.touches", 4))
 
 	//	Currently tested set of all candles
@@ -1455,10 +1482,9 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 	for __candle in candles
 		_bottom			=	contexts_bar_value(__candle, "candle", "bottom")
 		_top			=	contexts_bar_value(__candle, "candle", "top")
-		_size			=	contexts_bar_value(__candle, "candle", "size")
 		_index			=	int(contexts_bar_value(__candle, "candle", "index"))
-		_low_level		=	level("low",	_bottom,	_size * _factor)
-		_high_level		=	level("high",	_top,		_size * _factor)
+		_low_level		=	level("low",	_bottom,	_factor)
+		_high_level		=	level("high",	_top,		_factor)
 
 		if _low.size() == 0
 			_low.push(Test.new(_low_level, _index, _index, 0))
@@ -1547,24 +1573,17 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 	//	------------------------------
 	//	DEBUG ZONE
 	//	------------------------------
-	var	line _low_line		=	na
 	var	line _middle_line	=	na
 	var	line _high_line		=	na
 
 	if not na(_low_test)
-		line.delete(_low_line)
-
-		_low_line		:=	line.new(_low_test.index,		_low_test.level.level,		_low_test.index + 1,	_low_test.level.level, 		extend = extend.right, color = color.red)
+		render_level("trend.low", _low_test.level, _low_test.index, color.red)
 
 	if not na(_middle_test)
-		line.delete(_middle_line)
-
-		_middle_line	:=	line.new(_middle_test.index, 	_middle_test.level.level,	_middle_test.index + 1, _middle_test.level.level, 	extend = extend.right, color = color.orange)
+		render_level("trend.middle", _middle_test.level, _middle_test.index, color.orange)
 
 	if not na(_high_test)
-		line.delete(_high_line)
-
-		_high_line		:=	line.new(_high_test.index, 		_high_test.level.level,		_high_test.index + 1, 	_high_test.level.level,		extend = extend.right, color = color.green)
+		render_level("trend.high", _high_test.level, _high_test.index, color.green)
 	//	------------------------------
 	//	DEBUG ZONE
 	//	------------------------------

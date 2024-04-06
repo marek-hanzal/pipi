@@ -332,3 +332,14 @@ Structures enables tracking candles "in the void" - those in current extremes (a
 **Levels:**
 - `s:low`              	 		- current structure's low
 - `s:high`              	 	- current structure's high
+
+### Current Trends
+
+Simple tool, which tracks low/high of candles and dynamically updates low/high level based on number of touches candles has. This could
+be useful to find interesting prices with more candles in the low/high range.
+
+**Context**: `trends`
+
+**Config:**
+- `s:#.trends.factor`			- price tolerance factor (how wide the high/low level would be to count candle as a touch)
+- `s:#.trends.touches`			- how many touches are needed to update low/high level

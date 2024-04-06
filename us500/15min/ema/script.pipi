@@ -8,6 +8,9 @@ init
 		value	s:#.ema.length-1		20
 		value	s:#.ema.length-2		50
 		value	s:#.ema.length-3		200
+
+		value	s:#.structure.length	30
+		value	s:#.structure.deviation	3
 	;
 ;
 

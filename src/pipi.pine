@@ -43,18 +43,19 @@ import TradingView/ta/7 as ta7
 //			All the inputs needed by this indicator.
 //  ====================================================================================================================================================
 
-const string	_script_hint	=	"You should pass your strategy script here, documentation is on the project's GitHub page (see indicator homepage for details)."
-var	string		i_script		=	input.text_area("", "- 😎 Script 😎 -",	display = display.none,	tooltip = _script_hint)
+const string	_script_hint		=	"You should pass your strategy script here, documentation is on the project's GitHub page (see indicator homepage for details)."
+var	string		i_script			=	input.text_area("", "- 😎 Script 😎 -",	display = display.none,	tooltip = _script_hint)
 
-const string	group_plots		=	"- 📈 Plots 📈 -"
-var bool		i_day_level		=	input.bool(	true,	"Day Low/High",		group = group_plots, display = display.none,	tooltip = "Displays low/how of the current day")
-var bool		i_day_fibb		=	input.bool(	true,	"Day Fibbonachi",	group = group_plots, display = display.none,	tooltip = "Displays days fibbonachi levels, including zones")
-var bool		i_super_trend_1	=	input.bool(	true,	"Fast SuperTrend",	group = group_plots, display = display.none,	tooltip = "Show fast SuperTrends")
-var bool		i_super_trend_2	=	input.bool(	true,	"Slow SuperTrend",	group = group_plots, display = display.none,	tooltip = "Show slow SuperTrends")
-var bool		i_structures	=	input.bool(	true,	"Structures",		group = group_plots, display = display.none,	tooltip = "Show local structures (faster, than fibbonachi)")
-var bool		i_ema_1			=	input.bool(	true,	"EMA 1",			group = group_plots, display = display.none,	inline = "ema")
-var bool		i_ema_2			=	input.bool(	true,	"EMA 2",			group = group_plots, display = display.none,	inline = "ema")
-var bool		i_ema_3			=	input.bool(	true,	"EMA 3",			group = group_plots, display = display.none,	inline = "ema")
+const string	group_plots			=	"- 📈 Plots 📈 -"
+var bool		i_day_level			=	input.bool(	true,	"Day Low/High",			group = group_plots, display = display.none,	inline = "day")
+var bool		i_day_fibb			=	input.bool(	true,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "day",			tooltip = "Display day's low/high + it's fibbonachi levels")
+var bool		i_super_trend_1		=	input.bool(	true,	"Fast SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show fast SuperTrends")
+var bool		i_super_trend_2		=	input.bool(	true,	"Slow SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show slow SuperTrends")
+var bool		i_structures		=	input.bool(	true,	"Structures",			group = group_plots, display = display.none,	inline = "structure")
+var bool		i_structure_fibb	=	input.bool(	true,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "structure",	tooltip = "Displays local structure + it's fibbonachi levels, including zones")
+var bool		i_ema_1				=	input.bool(	true,	"EMA 1",				group = group_plots, display = display.none,	inline = "ema")
+var bool		i_ema_2				=	input.bool(	true,	"EMA 2",				group = group_plots, display = display.none,	inline = "ema")
+var bool		i_ema_3				=	input.bool(	true,	"EMA 3",				group = group_plots, display = display.none,	inline = "ema")
 
 //  ====================================================================================================================================================
 //      Functions
@@ -1092,14 +1093,16 @@ use_day_low_high(Contexts contexts) =>
 //	@function	Listens for changes of Day Low/High and adjusts Fibbonachi levels accordingly
 use_day_fibbonachi(Contexts contexts) =>
 	var Context	_context	=	context_create("day-fibbonachi")
+	Level		_level		=	contexts_state_level(contexts, "day", "level")
+	float		_factor		=	contexts_state_value(contexts, "day", "factor", 0)
 
 	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
-		context_state_levels(_context, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
+		context_state_levels(_context, fibbonachi(_level, _factor))
 
 	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
 	if contexts_bar_flag(contexts, "day", "change")
-		context_state_levels(_context, fibbonachi(contexts_state_level(contexts, "day", "level"), contexts_state_value(contexts, "day", "factor", 0)))
+		context_state_levels(_context, fibbonachi(_level, _factor))
 
 	use_context(contexts, _context)
 
@@ -1352,7 +1355,6 @@ use_structure(Contexts contexts) =>
 	var Context				_context		=	context_create("structure")
 	var float[]				_levels     	=	array.new<float>()
 	map<string, Level>		_structure		=	map.new<string, Level>()
-	float 					_factor			=	contexts_state_value(contexts, "day", "factor", 0)
 	var int					_i_length		=	int(contexts_state_value(	contexts, "#", "structure.length",		20))
 	var float				_i_deviation	=	int(contexts_state_value(	contexts, "#", "structure.deviation",	0))
 	var int					_lowest     	= 1
@@ -1387,14 +1389,37 @@ use_structure(Contexts contexts) =>
 	for _level in _levels
 		if na(_level_low) or _level < _level_low
 			_level_low:= _level
-			level_push(_structure, "low", _level, _factor)
+			level_push(_structure, "low", _level, 0)
 
 		if na(_level_high) or _level > _level_high
 			_level_high:= _level
-			level_push(_structure, "high", _level, _factor)
+			level_push(_structure, "high", _level, 0)
 
+	context_bar(_context, "change", false)
 	if _structure.size() > 0
+		context_bar(_context, "change", true)
 		context_state_levels(_context, _structure)
+
+	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      Fibbonachi levels for local structure
+//  ====================================================================================================================================================
+
+use_structure_fibbonachi(Contexts contexts) =>
+	var Context	_context	=	context_create("structure-fibbonachi")
+	Level 		_level		=	level_create("level", contexts_state_level(contexts, "structure", "low").level, contexts_state_level(contexts, "structure", "high").level)
+
+//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
+	if use_init()
+		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
+		context_state_levels(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
+
+	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
+	if contexts_bar_flag(contexts, "structure", "change")
+		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
+
+		context_state_levels(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
 
 	use_context(contexts, _context)
 
@@ -1441,6 +1466,7 @@ main(string script) =>
 	use_cci(_contexts)
 	use_ema(_contexts)
 	use_structure(_contexts)
+	use_structure_fibbonachi(_contexts)
 
 	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
 	use_candle(_contexts)
@@ -1524,6 +1550,45 @@ fill(_plot_100_1, _plot_100_2, _no_fill ? na : _color_100,	"Fibb - 100 (fill)")
 
 plot(i_structures	?	contexts_state_level(_contexts, "structure", "low").level	:	na,		"Structure low",	style = plot.style_line, linewidth = 3, 	color = color.new(color.fuchsia,	60),	display = display.pane)
 plot(i_structures	?	contexts_state_level(_contexts, "structure", "high").level	:	na,		"Structure high",	style = plot.style_line, linewidth = 3, 	color = color.new(color.teal,		60),	display = display.pane)
+
+//  ====================================================================================================================================================
+//      Local Structure Fibbonachi
+//  ====================================================================================================================================================
+
+_color_00		=	color.new(color.red, _fibb_alpha_1_background)
+_plot_00_1 		=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "0").low	:	na,		"Structure Fibb - 0 (low)",			linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_00, _fibb_alpha_1_linw), 		display = display.pane)
+_plot_00_2 		=	plot(i_structure_fibb ?contexts_state_level(_contexts, "structure-fibbonachi", "0").high	:	na,		"Structure Fibb - 0 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_00, _fibb_alpha_1_linw),		display = display.pane)
+fill(_plot_00_1, _plot_00_2,	_color_00,		"Structure Fibb - 0 (fill)")
+
+_color_020		=	color.new(color.yellow, _fibb_alpha_1_background)
+_plot_020_1 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "20").low	:	na,		"Structure Fibb - 23.6 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_020, _fibb_alpha_1_linw), 	display = display.pane)
+_plot_020_2 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "20").high	:	na,		"Structure Fibb - 23.6 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_020, _fibb_alpha_1_linw),		display = display.pane)
+fill(_plot_020_1, _plot_020_2,	_color_020,		"Structure Fibb - 23.6 (fill)")
+
+_color_030		=	color.new(color.orange, _fibb_alpha_2_background)
+_plot_030_1 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "30").low	:	na,		"Structure Fibb - 38.2 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
+_plot_030_2 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "30").high	:	na,		"Structure Fibb - 38.2 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_30, _fibb_alpha_2_line),		display = display.pane)
+fill(_plot_030_1, _plot_030_2,	_color_030,		"Structure Fibb - 38.2 (fill)")
+
+_color_050		=	color.new(color.green, _fibb_alpha_1_background)
+_plot_050_1 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "50").low	:	na,		"Structure Fibb - 50 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw),		display = display.pane)
+_plot_050_2 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "50").high	:	na,		"Structure Fibb - 50 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_50, _fibb_alpha_1_linw), 	display = display.pane)
+fill(_plot_050_1, _plot_050_2,  _color_050,		"Structure Fibb - 50 (fill)")
+
+_color_060		=	color.new(color.teal, _fibb_alpha_2_background)
+_plot_060_1 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "60").low	:	na,		"Structure Fibb - 61.8 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
+_plot_060_2 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "60").high	:	na,		"Structure Fibb - 61.8 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_60, _fibb_alpha_2_line), 	display = display.pane)
+fill(_plot_060_1, _plot_060_2,	_color_060,		"Structure Fibb - 61.8 (fill)")
+
+_color_070		=	color.new(color.aqua, _fibb_alpha_1_background)
+_plot_070_1 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "70").low	:	na,		"Structure Fibb - 78.6 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw),		display = display.pane)
+_plot_070_2 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "70").high	:	na,		"Structure Fibb - 78.6 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_70, _fibb_alpha_1_linw), 	display = display.pane)
+fill(_plot_070_1, _plot_070_2,  _color_070,		"Structure Fibb - 78.6 (fill)")
+
+_color_0100		=	color.new(color.green, _fibb_alpha_1_background)
+_plot_0100_1 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "100").low	:	na,		"Structure Fibb - 100 (low)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
+_plot_0100_2 	=	plot(i_structure_fibb ? contexts_state_level(_contexts, "structure-fibbonachi", "100").high	:	na,		"Structure Fibb - 100 (high)",		linewidth = 1, style = plot.style_steplinebr, color = color.new(_color_100, _fibb_alpha_1_linw),	display = display.pane)
+fill(_plot_0100_1, _plot_0100_2, _color_0100,	"Structure Fibb - 100 (fill)")
 
 //  ====================================================================================================================================================
 //      Render Profit/Loss for trades

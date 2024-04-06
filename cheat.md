@@ -321,6 +321,12 @@ may be somehow less accurate as it depends on user's input.
 - `s:#.structure.length`		- lookback length
 - `s:#.structure.deviation`		- how/low deviation for structure change detection
 
+**Flags:**
+- `b:structure.change`			- structures' low/high has changed
+
+**Values:**
+- `s:structure.factor`			- current structure size (high - low) factor; similar to the day low/high factor
+
 **Levels:**
 - `s:low`              	 		- current structure's low
 - `s:high`              	 	- current structure's high

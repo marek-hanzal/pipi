@@ -372,20 +372,16 @@ context_state(Context context, string name, Value value) =>
 context_state(Context context, string name, string value)	=>	context_state(context, name, value(value))
 context_state(Context context, string name, bool value)		=>	context_state(context, name, value(value))
 context_state(Context context, string name, float value)	=>	context_state(context, name, value(value))
-context_state(Context context, string name, Level value)	=>	context_state(context, name, value(value))
+context_state(Context context, string name, Level value)	=>
+	context_state(context, name, value(value))
+	context_state(context, name + ".low",	value.low)
+	context_state(context, name + ".high",	value.high)
+	context_state(context, name + ".level",	value.level)
+	context_state(context, name + ".size",	value.size)
 
 context_state(Context context, map<string, Level> levels) =>
 	for [_name, _level] in levels
 		context_state(context, _name, _level)
-
-context_state_levels(Context context, map<string, Level> levels) =>
-	context_state(context, levels)
-
-	for [__name, __level] in levels
-		context_state(context, __name + ".low",		__level.low)
-		context_state(context, __name + ".high",	__level.high)
-		context_state(context, __name + ".level",	__level.level)
-		context_state(context, __name + ".size",	__level.size)
 
 //	@function	Get a value from context; write and return default if not present
 context_state_default(Context context, string name, Value default) =>
@@ -1109,18 +1105,21 @@ use_day_low_high(Contexts contexts) =>
 		context_bar(_context, "new-day", true)
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 		context_state(_context, "size", _level.size)
+		context_state(_context, "level", _level)
 	else if low < _level.low
 		level_low(_level, low)
 		context_bar(_context, "change", true)
 		context_bar(_context, "lower-low", true)
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 		context_state(_context, "size", _level.size)
+		context_state(_context, "level", _level)
 	else if high > _level.high
 		level_high(_level, high)
 		context_bar(_context, "change", true)
 		context_bar(_context, "higher-high", true)
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 		context_state(_context, "size", _level.size)
+		context_state(_context, "level", _level)
 
 	use_context(contexts, _context)
 
@@ -1136,11 +1135,11 @@ use_day_fibbonachi(Contexts contexts) =>
 
 	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
-		context_state_levels(_context, fibbonachi(_level, _factor))
+		context_state(_context, fibbonachi(_level, _factor))
 
 	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
 	if contexts_bar_flag(contexts, "day", "change")
-		context_state_levels(_context, fibbonachi(_level, _factor))
+		context_state(_context, fibbonachi(_level, _factor))
 
 	use_context(contexts, _context)
 
@@ -1443,7 +1442,7 @@ use_structure(Contexts contexts) =>
 	context_bar(_context, "change", false)
 	if _structure.size() > 0
 		context_bar(_context, "change", true)
-		context_state_levels(_context, _structure)
+		context_state(_context, _structure)
 
 	use_context(contexts, _context)
 
@@ -1458,13 +1457,13 @@ use_structure_fibbonachi(Contexts contexts) =>
 	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
-		context_state_levels(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
+		context_state(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
 
 	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
 	if contexts_bar_flag(contexts, "structure", "change")
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 
-		context_state_levels(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
+		context_state(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
 
 	use_context(contexts, _context)
 

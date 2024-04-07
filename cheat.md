@@ -57,6 +57,10 @@ You'll see `x-cross` and close order description `CbA` (Closed by Action).
 
 Set various variables, when a pattern matches; see [Set section](#set-variables) for more details.
 
+###	hint
+
+Set action hint, which is displayed in the orders.
+
 ## Set (variables)
 
 // TODO: Sorry
@@ -125,6 +129,9 @@ Tracks daily high and low prices.
 - `s:day.factor`      - day's factor used to calculate level size (for example for fibbo and so on);
   						the reason is to keep levels somehow in sync with day's price range 
 - `s:day.size`        - day's price range
+
+**Levels:**
+- `s:day.level`       - day's level with low and high
 
 ### Day Fibbonachi
 

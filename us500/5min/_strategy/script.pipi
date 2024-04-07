@@ -1,0 +1,104 @@
+init
+	set
+		name	s:#.session.time		0900-2300
+		flag	s:#.session.exclusive	true
+
+		value	s:#.factor				0.3
+
+		value	s:#.cci.length			25
+
+		value	s:#.macd.length			9
+		value	s:#.macd.signal			5
+		value	s:#.macd.dmz			4.5
+		value	s:#.macd.impulse		3
+		value	s:#.macd.flat			0.1
+
+		value	s:#.ema.length-1		12
+		value	s:#.ema.length-2		50
+		value	s:#.ema.length-3		200
+
+		value	s:#.super-trend.fast-length		12
+		value	s:#.super-trend.fast-factor		1
+		value	s:#.super-trend.slow-length		24
+		value	s:#.super-trend.slow-factor		5
+
+		value	s:#.trends.factor		0.2
+		value	s:#.trends.touches		3
+		value	s:#.trends.count		3
+		value	s:#.trends.trend		3
+
+		value	s:#.take-profit			5
+		value	s:#.stop-loss			5
+	;
+;
+
+//	==============================
+//	-	long
+//	-	MACD long signal
+//	-	Fast SuperTrend uptrend
+pattern
+	candle
+		flag	b:macd.long				true
+		flag	b:super-trend.fast.up	true
+	;
+
+	action
+		hint	macd.long + fast trend
+
+		set
+			flag	b:#.buy				true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(0.75)
+		loss		b:candle.bottom	-	s:#.stop-loss(0.75)
+
+		long
+	;
+;
+
+//	==============================
+//	-	long
+//	-	MACD long signal
+//	-	Slow SuperTrend uptrend
+pattern
+	disabled
+
+	candle
+		flag	b:macd.long				true
+		flag	b:super-trend.slow.up	true
+	;
+
+	action
+		hint	macd.long + slow trend
+
+		set
+			flag	b:#.buy				true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(0.75)
+		loss		b:candle.bottom	-	s:#.stop-loss(0.75)
+
+		long
+	;
+;
+
+pattern
+	disabled
+
+	candle
+		flag	b:macd.up.impulse	true
+	;
+
+	action
+		hint	macd.up.impulse
+
+		set
+			flag	b:#.buy				true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(0.75)
+		loss		b:candle.bottom	-	s:#.stop-loss(1.25)
+
+		long
+	;
+;

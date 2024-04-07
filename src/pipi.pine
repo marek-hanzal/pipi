@@ -49,8 +49,8 @@ var	string		i_script			=	input.text_area("", "- 😎 Script 😎 -",	display = d
 const string	group_plots			=	"- 📈 Plots 📈 -"
 var bool		i_day_level			=	input.bool(	true,	"Day Low/High",			group = group_plots, display = display.none,	inline = "day")
 var bool		i_day_fibb			=	input.bool(	false,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "day",			tooltip = "Display day's low/high + it's fibbonachi levels")
-var bool		i_super_trend_1		=	input.bool(	true,	"Fast SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show fast SuperTrends")
-var bool		i_super_trend_2		=	input.bool(	true,	"Slow SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show slow SuperTrends")
+var bool		i_super_trend_1		=	input.bool(	false,	"Fast SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show fast SuperTrends")
+var bool		i_super_trend_2		=	input.bool(	false,	"Slow SuperTrend",		group = group_plots, display = display.none,	inline = "supertrend",	tooltip = "Show slow SuperTrends")
 var bool		i_structures		=	input.bool(	true,	"Structures",			group = group_plots, display = display.none,	inline = "structure")
 var bool		i_structure_fibb	=	input.bool(	false,	"Fibbonachi",			group = group_plots, display = display.none,	inline = "structure",	tooltip = "Displays local structure + it's fibbonachi levels, including zones")
 var bool		i_ema_1				=	input.bool(	false,	"EMA 1",				group = group_plots, display = display.none,	inline = "ema")
@@ -1554,7 +1554,12 @@ use_trends(Contexts[] candles, Contexts contexts) =>
 		if __test.count >= _touches and __test.index.last() > _test.index.last()
 			_test:=	__test
 
-	context_bar(_context, "level", na(_test) ? level(na) : _test.level)
+	context_bar(_context,	"up",			_trend_up.count >= _trend)
+	context_bar(_context,	"up.count",		_trend_up.count)
+	context_bar(_context,	"down",			_trend_down.count >= _trend)
+	context_bar(_context,	"down.count",	_trend_down.count)
+
+	context_bar(_context,	"level",	na(_test) ? level(na) : _test.level)
 
 	//	Render
 	if not na(_test)

@@ -33,6 +33,7 @@ init
 ;
 
 //	==============================
+//	Quite profitable, but with suboptimal RRR
 //	-	long
 //	-	MACD long signal
 //	-	Fast SuperTrend uptrend
@@ -50,7 +51,7 @@ pattern
 		;
 
 		profit		b:candle.top	+	s:#.take-profit(0.75)
-		loss		b:candle.bottom	-	s:#.stop-loss(0.75)
+		loss		b:candle.bottom	-	s:#.stop-loss(0.7)
 
 		long
 	;

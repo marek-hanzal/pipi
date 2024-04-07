@@ -344,3 +344,13 @@ be useful to find interesting prices with more candles in the low/high range.
 **Config:**
 - `s:#.trends.factor`			- price tolerance factor (how wide the high/low level would be to count candle as a touch)
 - `s:#.trends.touches`			- how many touches are needed to update low/high level
+- `s:#.trends.trend`			- how many candles in-between must be to count a touch
+
+**Flags:**
+- `b:trends.up`				    - detected uptrend
+- `b:trends.down`				- detected downtrend
+
+**Values:**
+- `s:trends.up.count`			- uptrend length (number of candles)
+- `s:trends.down.count`			- downtrend length (number of candles)
+

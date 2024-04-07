@@ -184,14 +184,14 @@ type Script
 	Pattern[]			pattern
 
 type Test
-	Level	level
-	int[]	index
-	int		count
+	Level				level
+	int[]				index
+	int					count
 
 //	@type				This is a result from the main indicator fucntion
 //	@field	contexts	All the contexts produced by the indicator
 type Result
-	Contexts				contexts
+	Contexts			contexts
 
 //  ====================================================================================================================================================
 //      Level
@@ -1049,7 +1049,7 @@ script(Script script, array<Contexts> candles, Contexts contexts) =>
 //      Rendering stuff
 //  ====================================================================================================================================================
 
-render_level(string name, Level level, int index, color color) =>
+render_level(string name, Level level, int index, int last, color color) =>
 	var map<string, line>	_lines = map.new<string, line>()
 	var map<string, box>	_boxes = map.new<string, box>()
 
@@ -1064,11 +1064,14 @@ render_level(string name, Level level, int index, color color) =>
 
 	box.delete(_boxes.get(_name_box))
 
-	// _lines.put(_name_low,	line.new(index,	level.low,		index + 1,	level.low, 		style = line.style_dotted,	extend = extend.right, color = color.new(color, 80), width = 1))
-	_lines.put(_name_level,	line.new(index,	level.level,	index + 1,	level.level,	style = line.style_solid,	extend = extend.right, color = color.new(color, 0), width = 1))
-	// _lines.put(_name_high,	line.new(index,	level.high,		index + 1,	level.high,		style = line.style_dotted,	extend = extend.right, color = color.new(color, 80), width = 1))
+	_last	=	na(last) ? index + 1 : last
+	_extend	=	na(last) ? extend.right : extend.none
 
-	// _boxes.put(_name_box,	box.new(index, level.high, index + 1, level.low, extend = extend.right, border_color = na, border_width = na, bgcolor = color.new(color, 97.5)))
+	// _lines.put(_name_low,	line.new(index,	level.low,		_last,	level.low, 		style = line.style_dotted,	extend = _extend, color = color.new(color, 80), width = 1))
+	_lines.put(_name_level,	line.new(index,	level.level,	_last,	level.level,	style = line.style_solid,	extend = _extend, color = color.new(color, 0), width = 1))
+	// _lines.put(_name_high,	line.new(index,	level.high,		_last,	level.high,		style = line.style_dotted,	extend = _extend, color = color.new(color, 80), width = 1))
+
+	// _boxes.put(_name_box,	box.new(index, level.high, _last, level.low, extend = _extend, border_color = na, border_width = na, bgcolor = color.new(color, 97.5)))
 
 	true
 
@@ -1195,6 +1198,9 @@ use_candle(Contexts contexts) =>
 	context_bar(_context, "body-gt-body",	_body > _body[1])
 	context_bar(_context, "body-tt-body",	_body < _body[1])
 
+	context_bar(_context, "up",				_low > _low[1])
+	context_bar(_context, "down",			_low < _low[1])
+
 	context_bar(_context, "open",			open)
 	context_bar(_context, "high",			high)
 	context_bar(_context, "low",			low)
@@ -1205,11 +1211,14 @@ use_candle(Contexts contexts) =>
 	context_bar(_context, "bottom",			_low)
 	context_bar(_context, "top",			_high)
 
+	use_context(contexts, _context)
+
+use_candle_levels(Contexts contexts) =>
+	Context	_context	=	contexts.map.get("candle")
+
 	for [__name, __context] in contexts.map
 		_use_candle_level(_context, "s." + __name, __context.state)
 		_use_candle_level(_context, "b." + __name, __context.bar)
-
-	use_context(contexts, _context)
 
 //  ====================================================================================================================================================
 //      Session range
@@ -1446,7 +1455,7 @@ use_structure_fibbonachi(Contexts contexts) =>
 	var Context	_context	=	context_create("structure-fibbonachi")
 	Level 		_level		=	level_create("level", contexts_state_level(contexts, "structure", "low").level, contexts_state_level(contexts, "structure", "high").level)
 
-//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
+	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
 		context_state(_context, "factor", _use_day_low_high_factor(contexts, _level))
 		context_state_levels(_context, fibbonachi(_level, context_state_value(_context, "factor", 0)))
@@ -1463,103 +1472,121 @@ use_structure_fibbonachi(Contexts contexts) =>
 //      Track current trends / structure levels
 //  ====================================================================================================================================================
 
-track_trends(Contexts[] candles, Contexts contexts) =>
+type Trend
+	int		start
+	int		index
+	float	price
+	float	close
+	int		count
+
+trend_create() =>
+	Trend.new(na, na, na, na, 0)
+
+use_trends(Contexts[] candles, Contexts contexts) =>
+	var Context	_context	=	context_create("trends")
+
 	float	_factor		=	contexts_state_value(contexts, "#", "trends.factor", 0.2)
 	int		_touches	=	int(contexts_state_value(contexts, "#", "trends.touches", 3))
+	int		_count		=	int(contexts_state_value(contexts, "#", "trends.count", 3))
+	int		_trend		=	int(contexts_state_value(contexts, "#", "trends.trend", 3))
 
 	//	Currently tested set of all candles
-	Test[]	_low		=	array.new<Test>()
-	Test[]	_high		=	array.new<Test>()
+	Test[]	_tests		=	array.new<Test>()
+	Test	_test		=	na
 
-	//	Candles with highest level counts
-	Test	_low_test		=	na
-	Test	_high_test		=	na
-
-	int		_low_length		=	0
-	int		_high_length	=	0
+	Trend	_trend_up	=	trend_create()
+	Trend	_trend_down	=	trend_create()
 
 	//	Count number of touches for lows & highs
 	for __candle in candles
+		_up				=	contexts_bar_flag(__candle, "candle", "up")
+		_down			=	contexts_bar_flag(__candle, "candle", "down")
+
 		_bottom			=	contexts_bar_value(__candle, "candle", "bottom")
 		_top			=	contexts_bar_value(__candle, "candle", "top")
+
 		_index			=	int(contexts_bar_value(__candle, "candle", "index"))
-		_low_level		=	level("low",	_bottom,		_factor)
-		_high_level		=	level("high",	_top,			_factor)
+		_low_level		=	level("low",	_bottom		-	_factor,		_factor)
+		_high_level		=	level("high",	_top		+	_factor,		_factor)
 
-		if _low.size() == 0
-			_low.push(Test.new(_low_level, array.from(_index), 0))
+		if _up
+			_trend_up.start		:=	na(_trend_up.start) ? _index	: _trend_up.start
+			_trend_up.price		:=	na(_trend_up.price) ? _bottom	: _trend_up.price
+			_trend_up.index		:=	_index
+			_trend_up.close		:=	_bottom
+			_trend_up.count		+=	1
 
-		if _high.size() == 0
-			_high.push(Test.new(_high_level, array.from(_index), 0))
+			_trend_down:=	trend_create()
 
-		_new_low=	false
+		if _down
+			_trend_down.start	:=	na(_trend_down.start) ? _index	: _trend_down.start
+			_trend_down.price	:=	na(_trend_down.price) ? _bottom	: _trend_down.price
+			_trend_down.index	:=	_index
+			_trend_down.close	:=	_bottom
+			_trend_down.count	+=	1
 
-		for __low in _low
-			if level_inside(__low.level, _bottom) and _low_length >= 2
-				_low_length		:=	0
-				_new_low		:=	true
-				__low.count		+=	1
-				__low.index.push(_index)
-				continue
+			_trend_up:=		trend_create()
 
-		if not _new_low
-			_low.push(Test.new(_low_level, array.from(_index), 1))
+		if _tests.size() == 0
+			_tests.push(Test.new(_low_level,	array.from(_index), 0))
+			_tests.push(Test.new(_high_level,	array.from(_index), 0))
 
-		_low_length+=	1
+		_found	=	false
 
-		_new_high=	false
-		for __high in _high
-			if level_inside(__high.level, _top) and _high_length >= 2
-				_high_length	:=	0
-				_new_high		:=	true
-				__high.count	+=	1
-				__high.index.push(_index)
-				continue
+		for __test in _tests
+			if (level_inside(__test.level, _bottom) or level_inside(__test.level, _top)) and (_index - __test.index.last()) >= _count
+				_found			:=	true
+				__test.count	+=	1
+				__test.index.push(_index)
 
-		if not _new_high
-			_high.push(Test.new(_high_level, array.from(_index), 1))
+		if not _found
+			_tests.push(Test.new(_low_level,	array.from(_index), 1))
+			_tests.push(Test.new(_high_level,	array.from(_index), 1))
 
-		_high_length+=	1
-
-	//	Search for current low/high touches
-	for __low in _low
-		if __low.count >= _touches and na(_low_test)
-			_low_test:=	__low
+	for __test in _tests
+		if __test.count >= _touches and na(_test)
+			_test:=	__test
 			continue
 
-		if na(_low_test)
+		if na(_test)
 			continue
 
-		if __low.count >= _touches and __low.index.last() > _low_test.index.last()
-			_low_test:=	__low
+		if __test.count >= _touches and __test.index.last() > _test.index.last()
+			_test:=	__test
 
-	for __high in _high
-		if __high.count >= _touches and na(_high_test)
-			_high_test:=	__high
-			continue
+	context_bar(_context, "level", na(_test) ? level(na) : _test.level)
 
-		if na(_high_test)
-			continue
+	//	Render
+	if not na(_test)
+		render_level("trend.low", _test.level, _test.index.first(), na, color.yellow)
 
-		if __high.count >= _touches and __high.index.last() > _high_test.index.last()
-			_high_test:=	__high
+	var	line	_trend_up_line		=	na
+	var	line	_trend_up_price		=	na
+	var	line	_trend_up_close		=	na
 
-	//	------------------------------
-	//	DEBUG ZONE
-	//	------------------------------
-	var	line _middle_line	=	na
-	var	line _high_line		=	na
+	var	line	_trend_down_line	=	na
+	var	line	_trend_down_price	=	na
+	var	line	_trend_down_close	=	na
 
-	if not na(_low_test)
-		render_level("trend.low", _low_test.level, _low_test.index.first(), color.red)
+	line.delete(_trend_up_line)
+	line.delete(_trend_up_price)
+	line.delete(_trend_up_close)
 
-	if not na(_high_test)
-		render_level("trend.high", _high_test.level, _high_test.index.first(), color.green)
-	//	------------------------------
-	//	DEBUG ZONE
-	//	------------------------------
+	line.delete(_trend_down_line)
+	line.delete(_trend_down_price)
+	line.delete(_trend_down_close)
 
-	true
+	if _trend_up.count	>= _trend
+		_trend_up_line	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.index,		_trend_up.close,	extend = extend.right, color = color.green)
+		_trend_up_price	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.start + 1,	_trend_up.price,	extend = extend.right, color = color.new(color.red, 50))
+		_trend_up_close	:=	line.new(_trend_up.start, _trend_up.close,	_trend_up.start + 1,	_trend_up.close,	extend = extend.right, color = color.new(color.green, 50))
+
+	if _trend_down.count	>= _trend
+		_trend_down_line	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.index,		_trend_down.close,	extend = extend.both, color = color.red)
+		_trend_down_price	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.start + 1,	_trend_down.price,	extend = extend.both, color = color.new(color.green, 50))
+		_trend_down_close	:=	line.new(_trend_down.start,	_trend_down.close,	_trend_down.start + 1,	_trend_down.close,	extend = extend.both, color = color.new(color.red, 50))
+
+	use_context(contexts, _context)
 
 //  ====================================================================================================================================================
 //      Main Entry
@@ -1599,15 +1626,19 @@ main(string script) =>
 	use_day_low_high			(_contexts)
 	use_day_fibbonachi			(_contexts)
 	use_session					(_contexts)
-	use_macd					(_contexts)
-	use_super_trend				(_contexts)
-	use_cci						(_contexts)
-	use_ema						(_contexts)
+	// use_macd					(_contexts)
+	// use_super_trend				(_contexts)
+	// use_cci						(_contexts)
+	// use_ema						(_contexts)
 	use_structure				(_contexts)
 	use_structure_fibbonachi	(_contexts)
+	use_candle					(_contexts)
+
+	//	This one must be after candle analytics, so it can calculate current trends stuff with current candle
+	use_trends					(_candles, _contexts)
 
 	//	This one should be last, because it contains candle analytics; so if anybody produces a level, candle will handle it
-	use_candle					(_contexts)
+	use_candle_levels			(_contexts)
 
 	//	Add copy of current snapshot to candles, so one can ask for all the states/values/whatever on that candle
 	//		Just not that it's a current snapshot not altered by a script
@@ -1620,9 +1651,6 @@ main(string script) =>
 
 	//	"External" trade manager to keep everything in sync
 	trader(_contexts)
-
-	//	Here are all methods using current candles for calculating this based on current candles
-	track_trends				(_candles, _contexts)
 
 	Result.new(_contexts)
 

@@ -1,5 +1,5 @@
 //@version=5
-strategy("PiPi v0.5.0", overlay = true, default_qty_value = 0.5, currency = currency.USD, pyramiding = 1, process_orders_on_close = false, initial_capital = 1000, max_lines_count = 500, max_bars_back = 4900, max_boxes_count = 500, max_labels_count = 500, calc_on_order_fills = false)
+strategy("PiPi v0.5.0", overlay = true, default_qty_value = 2, currency = currency.USD, pyramiding = 1, process_orders_on_close = false, initial_capital = 1000, max_lines_count = 500, max_bars_back = 4900, max_boxes_count = 500, max_labels_count = 500, calc_on_order_fills = false)
 
 import TradingView/ta/7 as ta7
 
@@ -133,6 +133,9 @@ type Math
 //	@type				Startup part of the script
 //	@field	set_value	Those values will be set into the context(s)
 type Init
+	int					priority
+	bool				long
+	bool				short
 	SetValue[]			set_value
 
 //	@type				Candle rule to match exactly one value/state/whatever
@@ -171,6 +174,7 @@ type Action
 //	@field	action		Action being taken when pattern is matched
 type Pattern
 	string				name
+	int					priority
 	bool				strict
 	bool				enabled
 	Candle[]			candle
@@ -729,10 +733,10 @@ action_create() =>
 	Action.new(na, array.new<SetValue>(), na, na, 0)
 
 pattern_create() =>
-	Pattern.new(na, false, true, array.new<Candle>(), action_create())
+	Pattern.new(na, 0, false, true, array.new<Candle>(), action_create())
 
 script_create() =>
-	Script.new(Init.new(array.new<SetValue>()), array.new<Pattern>())
+	Script.new(Init.new(0, true, true, array.new<SetValue>()), array.new<Pattern>())
 
 //  ====================================================================================================================================================
 //      Parser
@@ -770,10 +774,28 @@ parse_math_value(string line) =>
 
 	_key
 
-parse_init(string[] stack, string line) =>
-	switch line
-		"set" =>
-			stack.push("parse_set")
+parse_init(string[] stack, string line, Init init) =>
+	_text	=	str.split(line,	"\t")
+
+	switch _text.get(0)
+		"priority"	=>
+			if _text.size() == 2
+				init.priority:=		int(str.tonumber(_text.get(1)))
+		"long"		=>
+			if _text.size() == 2
+				switch _text.get(1)
+					"true"	=> init.long:=	true
+					"false"	=> init.long:=	false
+					=>	init.long:=	true
+		"short"		=>
+			if _text.size() == 2
+				switch _text.get(1)
+					"true"	=> init.short:=	true
+					"false"	=> init.short:=	false
+					=>	init.short:=	true
+		"set"		=>	stack.push("parse_set")
+
+	init
 
 parse_set(string line, SetValue[] set_value) =>
 	_set = str.split(line, "\t")
@@ -784,10 +806,11 @@ parse_pattern(string[] stack, string line, Pattern pattern) =>
 	_text = str.split(line, "\t")
 
 	switch _text.get(0)
-		"name"		=>	pattern.name	:=	_text.size() == 2 ? _text.get(1) : na
-		"strict"	=>	pattern.strict	:=	true
-		"!strict"	=>	pattern.strict	:=	false
-		"disabled"	=>	pattern.enabled	:=	false
+		"name"		=>	pattern.name		:=	_text.size() == 2 ? _text.get(1) : na
+		"strict"	=>	pattern.strict		:=	true
+		"priority"	=>	pattern.priority	:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : 0
+		"!strict"	=>	pattern.strict		:=	false
+		"disabled"	=>	pattern.enabled		:=	false
 		"candle"	=>	stack.push("parse_pattern_candle")
 		"action"	=>	stack.push("parse_action")
 
@@ -904,7 +927,7 @@ parse(string script) =>
 		if _stack.size() > 0
 			switch _stack.last()
 				"parse_init" =>
-					parse_init(_stack, _text)
+					parse_init(_stack, _text, _script.init)
 
 				"parse_set" =>
 					parse_set(_text, _set_value)
@@ -956,7 +979,7 @@ parse(string script) =>
 //      Action related stuff
 //  ====================================================================================================================================================
 
-action_trade(Action action, Contexts contexts) =>
+action_trade(Init init, Action action, Contexts contexts) =>
 	var box	_box	=	na
 
 	if action.order != 0
@@ -969,11 +992,11 @@ action_trade(Action action, Contexts contexts) =>
 			_hint_profit	= na(action.hint) ? "TP" : action.hint + ": TP"
 			_hint_loss		= na(action.hint) ? "SL" : action.hint + ": SL"
 
-			if action.order > 0
+			if action.order > 0 and init.long
 				_entry:= true
 				strategy.entry("long", direction = strategy.long, comment = action.hint)
 				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
-			else if action.order < 0
+			else if action.order < 0 and init.short
 				_entry:= true
 				strategy.entry("short", direction = strategy.short, comment = action.hint)
 				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
@@ -992,9 +1015,9 @@ action_trade(Action action, Contexts contexts) =>
 		contexts_bar(contexts,		"trade", "closed",	true)
 		strategy.close_all("CbA")
 
-action(Action action, Contexts contexts) =>
+action(Init init, Action action, Contexts contexts) =>
 	contexts_values(contexts, action.set_value)
-	action_trade(action, contexts)
+	action_trade(init, action, contexts)
 
 //  ====================================================================================================================================================
 //      Trading management stuff
@@ -1031,7 +1054,7 @@ script(Script script, array<Contexts> candles, Contexts contexts) =>
 	Pattern _pattern = na
 
 	for __pattern in script.pattern
-		if not __pattern.enabled
+		if not __pattern.enabled or __pattern.priority < script.init.priority
 			continue
 
 		if pattern(__pattern, candles)
@@ -1039,7 +1062,7 @@ script(Script script, array<Contexts> candles, Contexts contexts) =>
 			break
 
 	if not na(_pattern)
-		action(_pattern.action, contexts)
+		action(script.init, _pattern.action, contexts)
 
 //  ====================================================================================================================================================
 //      Rendering stuff

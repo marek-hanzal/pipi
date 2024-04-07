@@ -1,4 +1,8 @@
 init
+	priority	20
+	long		true
+	short		true
+
 	set
 		name	s:#.session.time		0900-2300
 		flag	s:#.session.exclusive	true
@@ -33,14 +37,19 @@ init
 ;
 
 //	==============================
-//	Quite profitable, but with suboptimal RRR
+//	Reliable, quite profitable, but with suboptimal RRR
+//
+//	!! Does not play well with others !!
+//
 //	-	long
 //	-	MACD long signal
 //	-	Fast SuperTrend uptrend
 pattern
+	priority		15
+
 	candle
-		flag	b:macd.long				true
-		flag	b:super-trend.fast.up	true
+		flag	b:macd.long
+		flag	b:super-trend.fast.up
 	;
 
 	action
@@ -58,15 +67,21 @@ pattern
 ;
 
 //	==============================
-//	-	long
-//	-	MACD long signal
-//	-	Slow SuperTrend uptrend
+//	Quite inaccurate, but very profitable, very high RRR, long trades
+//
+//	-	short
+//	-	MACD short signal
+//	-	Slow SuperTrend downtrend
 pattern
-	disabled
+	priority	50
 
 	candle
-		flag	b:macd.long				true
-		flag	b:super-trend.slow.up	true
+		flag	b:macd.short
+		flag	b:super-trend.slow.down
+	;
+
+	candle
+		flag	b:candle.green
 	;
 
 	action
@@ -76,30 +91,168 @@ pattern
 			flag	b:#.buy				true
 		;
 
-		profit		b:candle.top	+	s:#.take-profit(0.75)
-		loss		b:candle.bottom	-	s:#.stop-loss(0.75)
+		profit		b:candle.bottom	+	s:#.take-profit(3.5)
+		loss		b:candle.top	-	s:#.stop-loss(1.75)
 
 		long
 	;
 ;
 
+//	==============================
+//	Quiet profitable, quite reliable, with medium RRR, a few longer trades
+//
+//	-	long
+//	-	MACD long signal
+//	-	Slow SuperTrend uptrend
 pattern
-	disabled
+	priority	20
 
 	candle
-		flag	b:macd.up.impulse	true
+		flag	b:macd.long
+		flag	b:super-trend.slow.up
 	;
 
 	action
-		hint	macd.up.impulse
+		hint	macd.long + slow trend
 
 		set
 			flag	b:#.buy				true
 		;
 
-		profit		b:candle.top	+	s:#.take-profit(0.75)
-		loss		b:candle.bottom	-	s:#.stop-loss(1.25)
+		profit		b:candle.top	+	s:#.take-profit(2.5)
+		loss		b:candle.bottom	-	s:#.stop-loss(2.5)
 
 		long
 	;
 ;
+
+//	==============================
+//	Quite rare, very profitable, very long trades, quite good RRR
+//
+//	-	long
+//	-	Both SuperTrend uptrend
+pattern
+	priority	20
+
+	candle
+		flag	b:super-trend.fast.up.start
+		flag	b:super-trend.slow.up.start
+	;
+
+	action
+		hint	super-trend both started
+
+		set
+			flag	b:#.buy				true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(2.5)
+		loss		b:candle.bottom	-	s:#.stop-loss(2)
+
+		long
+	;
+;
+
+//	==============================
+//	Quite rare, incredibly accurate, quite profitable
+//
+//	-	long
+//	-	CCI
+//	-	Above EMA 1
+pattern
+	priority	25
+
+	candle
+		flag	b:candle.green
+		flag	b:cci.below.exit
+	;
+
+	candle
+		flag	b:candle.green
+		value	b:candle.low	>	s:day-fibbonachi.100.high
+		flag	b:candle.s.day-fibbonachi.70.wicks-over
+		flag	b:super-trend.fast.up
+		value	b:candle.low	>	b:ema.1.level
+	;
+
+	action
+		hint	long cci
+
+		set
+			flag	b:#.buy		true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(1)
+		loss		s:day.level.low	-	s:#.stop-loss(0.25)
+
+		long
+	;
+;
+
+//	==============================
+//	Quite unstable, somehow profitable, medium RRR; has big hit on profitability percentage
+//
+//	-	long
+//	-	Short -> Long reversal
+pattern
+	priority	20
+	strict
+
+	candle
+		flag	b:candle.red
+		value	b:candle.low	<	s:day-fibbonachi.100.high
+	;
+
+	candle
+		flag	b:candle.green
+		value	b:candle.low	<	s:day-fibbonachi.100.high
+	;
+
+	action
+		hint		short -> long reversal
+
+		set
+			flag	b:#.buy	true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(0.5)
+		loss		b:candle.bottom	-	s:#.stop-loss(0.5)
+
+		long
+	;
+;
+
+//	==============================
+//
+//	-	long
+//	-	Close above EMA 1
+
+pattern
+	priority	20
+	strict
+
+	candle
+		flag	b:candle.red
+	;
+
+	candle
+		flag	b:candle.green
+		value	b:candle.close	>	b:ema.1.level
+		value	b:candle.open	<	b:ema.1.level
+		value	b:candle.low	<	s:day-fibbonachi.100.high
+	;
+
+	action
+		hint		close above EMA 1
+
+		set
+			flag	b:#.buy	true
+		;
+
+		profit		b:candle.top	+	s:#.take-profit(0.5)
+		loss		b:candle.bottom	-	s:#.stop-loss(0.5)
+
+		long
+	;
+;
+

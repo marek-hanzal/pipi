@@ -1577,14 +1577,14 @@ use_trends(Contexts[] candles, Contexts contexts) =>
 	line.delete(_trend_down_close)
 
 	if _trend_up.count	>= _trend
-		_trend_up_line	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.index,		_trend_up.close,	extend = extend.right, color = color.green)
-		_trend_up_price	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.start + 1,	_trend_up.price,	extend = extend.right, color = color.new(color.red, 50))
-		_trend_up_close	:=	line.new(_trend_up.start, _trend_up.close,	_trend_up.start + 1,	_trend_up.close,	extend = extend.right, color = color.new(color.green, 50))
+		_trend_up_line	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.index,		_trend_up.close,	extend = extend.both, color = color.green)
+		_trend_up_price	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.start + 1,	_trend_up.price,	extend = extend.right, style = line.style_dashed,	color = color.new(color.red, 50))
+		_trend_up_close	:=	line.new(_trend_up.start, _trend_up.close,	_trend_up.start + 1,	_trend_up.close,	extend = extend.right, style = line.style_dashed,	color = color.new(color.green, 50))
 
 	if _trend_down.count	>= _trend
 		_trend_down_line	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.index,		_trend_down.close,	extend = extend.both, color = color.red)
-		_trend_down_price	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.start + 1,	_trend_down.price,	extend = extend.both, color = color.new(color.green, 50))
-		_trend_down_close	:=	line.new(_trend_down.start,	_trend_down.close,	_trend_down.start + 1,	_trend_down.close,	extend = extend.both, color = color.new(color.red, 50))
+		_trend_down_price	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.start + 1,	_trend_down.price,	extend = extend.right, style = line.style_dashed,	color = color.new(color.green, 50))
+		_trend_down_close	:=	line.new(_trend_down.start,	_trend_down.close,	_trend_down.start + 1,	_trend_down.close,	extend = extend.right, style = line.style_dashed,	color = color.new(color.red, 50))
 
 	use_context(contexts, _context)
 

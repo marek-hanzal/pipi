@@ -351,6 +351,8 @@ be useful to find interesting prices with more candles in the low/high range.
 - `b:trends.down`				- detected downtrend
 
 **Values:**
-- `s:trends.up.count`			- uptrend length (number of candles)
-- `s:trends.down.count`			- downtrend length (number of candles)
+- `b:trends.up.count`			- uptrend length (number of candles)
+- `b:trends.down.count`			- downtrend length (number of candles)
 
+**Levels:**
+- `b:level`            	 		- point-of-interest level (level with most touches)

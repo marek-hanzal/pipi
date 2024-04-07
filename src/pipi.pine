@@ -1559,7 +1559,7 @@ use_trends(Contexts[] candles, Contexts contexts) =>
 	context_bar(_context,	"down",			_trend_down.count >= _trend)
 	context_bar(_context,	"down.count",	_trend_down.count)
 
-	context_bar(_context,	"level",	na(_test) ? level(na) : _test.level)
+	context_bar(_context,	"level",		na(_test) ? level(na) : _test.level)
 
 	//	Render
 	if not na(_test)
@@ -1610,7 +1610,7 @@ main(string script) =>
 	//		-	Higher (> 5min) timeframes may need much less tracked candles
 	//
 	//	Also keep in mind that when you use non-strict pattern matching, you may need much more candles
-	const int		_limit		=	50
+	const int		_limit		=	30
 	var Script		_script		=	parse(script)
 
 	//	This ensures all the bar-only variables are dropped before processing new bar

@@ -1065,11 +1065,11 @@ render_level(string name, Level level, int index, color color) =>
 
 	box.delete(_boxes.get(_name_box))
 
-	_lines.put(_name_low,	line.new(index,	level.low,		index + 1,	level.low, 		extend = extend.right, color = color.new(color, 85), width = 2))
-	_lines.put(_name_level,	line.new(index,	level.level,	index + 1,	level.level,	extend = extend.right, color = color.new(color, 25), width = 1))
-	_lines.put(_name_high,	line.new(index,	level.high,		index + 1,	level.high,		extend = extend.right, color = color.new(color, 85), width = 2))
+	_lines.put(_name_low,	line.new(index,	level.low,		index + 1,	level.low, 		style = line.style_dotted,	extend = extend.right, color = color.new(color, 80), width = 1))
+	_lines.put(_name_level,	line.new(index,	level.level,	index + 1,	level.level,	style = line.style_dotted,	extend = extend.right, color = color.new(color, 15), width = 1))
+	_lines.put(_name_high,	line.new(index,	level.high,		index + 1,	level.high,		style = line.style_dotted,	extend = extend.right, color = color.new(color, 80), width = 1))
 
-	_boxes.put(_name_box,	box.new(index, level.high, index + 1, level.low, extend = extend.right, border_color = na, border_width = na, bgcolor = color.new(color, 95)))
+	_boxes.put(_name_box,	box.new(index, level.high, index + 1, level.low, extend = extend.right, border_color = na, border_width = na, bgcolor = color.new(color, 97.5)))
 
 	true
 
@@ -1470,12 +1470,10 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 
 	//	Currently tested set of all candles
 	Test[]	_low		=	array.new<Test>()
-	Test[]	_middle		=	array.new<Test>()
 	Test[]	_high		=	array.new<Test>()
 
 	//	Candles with highest level counts (2+)
 	Test	_low_test		=	na
-	Test	_middle_test	=	na
 	Test	_high_test		=	na
 
 	//	Count number of touches for lows & highs
@@ -1488,10 +1486,6 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 
 		if _low.size() == 0
 			_low.push(Test.new(_low_level, _index, _index, 0))
-
-		if _middle.size() == 0
-			_middle.push(Test.new(_low_level,	_index, _index, 0))
-			_middle.push(Test.new(_high_level,	_index, _index, 0))
 
 		if _high.size() == 0
 			_high.push(Test.new(_high_level, _index, _index, 0))
@@ -1506,24 +1500,6 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 
 		if not _new_low
 			_low.push(Test.new(_low_level, _index, _index, 1))
-
-		_new_middle=	false
-		for __middle in _middle
-			if level_inside(__middle.level, _bottom)
-				_new_middle	:=	true
-				__middle.count	+=	1
-				__middle.last	:=	_index
-				continue
-
-			if level_inside(__middle.level, _top)
-				_new_middle	:=	true
-				__middle.count	+=	1
-				__middle.last	:=	_index
-				continue
-
-		if not _new_middle
-			_middle.push(Test.new(_low_level,	_index, _index, 1))
-			_middle.push(Test.new(_high_level,	_index, _index, 1))
 
 		_new_high=	false
 		for __high in _high
@@ -1548,17 +1524,6 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 		if __low.count >= _touches and __low.last > _low_test.last
 			_low_test:=	__low
 
-	for __middle in _middle
-		if __middle.count >= _touches and na(_middle_test)
-			_middle_test:=	__middle
-			continue
-
-		if na(_middle_test)
-			continue
-
-		if __middle.count >= _touches and __middle.last > _middle_test.last
-			_middle_test:=	__middle
-
 	for __high in _high
 		if __high.count >= _touches and na(_high_test)
 			_high_test:=	__high
@@ -1578,9 +1543,6 @@ track_trends(Contexts[] candles, Contexts contexts) =>
 
 	if not na(_low_test)
 		render_level("trend.low", _low_test.level, _low_test.index, color.red)
-
-	if not na(_middle_test)
-		render_level("trend.middle", _middle_test.level, _middle_test.index, color.orange)
 
 	if not na(_high_test)
 		render_level("trend.high", _high_test.level, _high_test.index, color.green)

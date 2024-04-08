@@ -334,11 +334,17 @@ context_set(Context context, map<string, Level> levels) 	=>
 //      Context - Getters
 //  ====================================================================================================================================================
 
-context_get_string	(Context context, string name, string 	default	= na)	=>	value(context.value.get(name), value(default)).name
-context_get_flag	(Context context, string name, bool		default	= na)	=>	value(context.value.get(name), value(default)).flag
-context_get_float	(Context context, string name, float	default	= na)	=>	value(context.value.get(name), value(default)).value
-context_get_int		(Context context, string name, int		default	= na)	=>	int(value(context.value.get(name), value(default)).value)
-context_get_level	(Context context, string name, Level	default	= na)	=>	value(context.value.get(name), value(level(default))).level
+context_get			(Context context, string name, Value	default)		=>
+	if not context.value.contains(name)
+		log.warning("unknown value [{0}.{1}]", context.name, name)
+
+	value(context.value.get(name), default)
+
+context_get_string	(Context context, string name, string 	default	= na)	=>	context_get(	context, name,		value(default)).name
+context_get_flag	(Context context, string name, bool		default	= na)	=>	context_get(	context, name,		value(default)).flag
+context_get_float	(Context context, string name, float	default	= na)	=>	context_get(	context, name,		value(default)).value
+context_get_int		(Context context, string name, int		default	= na)	=>	int(context_get(context, name,		value(default)).value)
+context_get_level	(Context context, string name, Level	default	= na)	=>	context_get(	context, name,		value(level(default))).level
 
 //  ====================================================================================================================================================
 //      Contexts - Setters
@@ -406,6 +412,7 @@ flag_of(string[] value, Contexts contexts) =>
 				=> na
 
 		2 =>
+			// log.info("flag_of [{0}]", value)
 			contexts_get_flag(contexts, value.get(0), value.get(1))
 
 name_of(string[] value, Contexts contexts) =>
@@ -589,27 +596,25 @@ script_create()												=>	Script.new(Init.new(0, true, true, array.new<SetVa
 parse_key(string line) =>
 	string[]	_key = array.from(line)
 
-	if not na(str.match(line, "^[sb]:([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
-		_scope		=	str.startswith(line, "s:") ? "state" :	"bar"
-		_context	=	str.substring(line, 2, str.pos(line, "."))
+	if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
+		_context	=	str.substring(line, 1, str.pos(line, "."))
 		_name		=	str.substring(line, str.pos(line, ".") + 1)
-		_key		:=	array.from(_scope, _context, _name)
+		_key		:=	array.from(_context, _name)
 
 	_key
 
 parse_math_value(string line) =>
 	string[]	_key = array.from(line)
 
-	if not na(str.match(line, "^[sb]:([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
-		_scope		=	str.startswith(line, "s:") ? "state" :	"bar"
-		_context	=	str.substring(line, 2, str.pos(line, "."))
+	if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
+		_context	=	str.substring(line, 1, str.pos(line, "."))
 		_name		=	str.substring(line, str.pos(line, ".") + 1)
-		_key		:=	array.from(_scope, _context, _name, "1")
-	else if not na(str.match(line, "^[sb]:([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
-		_scope		=	str.startswith(line, "s:") ? "state" :	"bar"
-		_context	=	str.substring(line, 2, str.pos(line, "."))
+		_key		:=	array.from(_context, _name, "1")
+
+	else if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
+		_context	=	str.substring(line, 1, str.pos(line, "."))
 		_name		=	str.substring(line, str.pos(line, ".") + 1, str.pos(line, "("))
-		_key		:=	array.from(_scope, _context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
+		_key		:=	array.from(_context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
 
 	_key
 
@@ -828,7 +833,7 @@ action_trade(Init init, Action action, Contexts contexts) =>
 	contexts_set(contexts,	"trade", "closed",		false)
 
 	if action.order != 0
-		_is_session	=	contexts_get_flag(contexts, "session", "@:open", true)
+		_is_session	=	contexts_get_flag(contexts, "session", "open", true)
 		_profit		=	na(action.profit)	? na : math(action.profit,	contexts)
 		_loss		=	na(action.loss)		? na : math(action.loss,	contexts)
 
@@ -872,15 +877,27 @@ action(Init init, Action action, Contexts contexts) =>
 //  ====================================================================================================================================================
 
 trader(Contexts contexts) =>
+	if use_init()
+		contexts_set(		contexts,	"trade",	"exit",		false)
+		contexts_set(		contexts,	"trade",	"closed",	false)
+
+		contexts_set(		contexts,	"trade",	"long",		false)
+		contexts_set(		contexts,	"trade",	"short",	false)
+		contexts_set(		contexts,	"trade",	"profit",	na)
+		contexts_set(		contexts,	"trade",	"loss",		na)
+		contexts_set(		contexts,	"trade",	"pnl",		na)
+
+		contexts_counter(	contexts,	"trade",	"length",	na)
+
 	//	Check, if we've closed a trade, this handles also trades opened and closed on the same candle
 	if strategy.closedtrades > strategy.closedtrades[1]
-		contexts_set(		contexts,	"trade", "exit",	true)
+		contexts_set(		contexts,	"trade",	"exit",	true)
 
-		contexts_set(		contexts,	"trade", "long",	false)
-		contexts_set(		contexts,	"trade", "short",	false)
-		contexts_set(		contexts,	"trade", "profit",	na)
-		contexts_set(		contexts,	"trade", "loss",	na)
-		contexts_set(		contexts,	"trade", "pnl",		na)
+		contexts_set(		contexts,	"trade",	"long",		false)
+		contexts_set(		contexts,	"trade",	"short",	false)
+		contexts_set(		contexts,	"trade",	"profit",	na)
+		contexts_set(		contexts,	"trade",	"loss",		na)
+		contexts_set(		contexts,	"trade",	"pnl",		na)
 
 		contexts_counter(	contexts,	"trade",	"length",	na)
 
@@ -948,10 +965,22 @@ render_level(string name, Level level, int index, int last, color color) =>
 //  ====================================================================================================================================================
 
 use_defaults() =>
-	var Context	_context	=	context_create("#")
+	var Context	_context	=	context_create("ctx")
 
 	if use_init()
 		context_set(_context, "factor",		0.3)
+
+		context_set(_context,	"structure.length",		20)
+		context_set(_context,	"structure.deviation",	0)
+
+		context_set(_context,	"trends.factor",		0.2)
+		context_set(_context,	"trends.touches",		3)
+		context_set(_context,	"trends.count",			3)
+		context_set(_context,	"trends.trend",			3)
+
+	//	Reset default global flags
+	context_set(_context,	"buy",	false)
+	context_set(_context,	"sell",	false)
 
 	_context
 
@@ -961,21 +990,21 @@ use_defaults() =>
 
 //	@function	DRY, bro
 _use_day_low_high_factor(Contexts contexts, Level level) =>
-	(level.size * (contexts_get_float(contexts, "#", "factor") / 10)) / 2
+	(level.size * (contexts_get_float(contexts, "ctx", "factor") / 10)) / 2
 
 //	@function	Manages context of current Day Low/High and related events
 use_day_low_high(Contexts contexts) =>
 	var Context	_context	=	context_create("day")
-	Level		_level		=	na
+	var	Level	_level		=	level_create("day", low, high)
 
 	if use_init()
-		_level:=	context_set(_context, "level", level_create("day", low, high))
-		context_set(_context, "factor", _use_day_low_high_factor(contexts, _level))
+		context_set(_context, "level",	_level)
+		context_set(_context, "factor",	_use_day_low_high_factor(contexts, _level))
 
-	context_set(_context, "change",			true)
-	context_set(_context, "new-day",		true)
-	context_set(_context, "higher-high",	true)
-	context_set(_context, "lower-low",		true)
+	context_set(_context, "change",			false)
+	context_set(_context, "new-day",		false)
+	context_set(_context, "higher-high",	false)
+	context_set(_context, "lower-low",		false)
 
 	if bool(ta.change(time('D')))
 		level_update(_level, low, high)
@@ -1110,8 +1139,8 @@ use_candle_levels(Contexts contexts) =>
 
 use_session(Contexts contexts) =>
 	var Context		_context	=	context_create("session")
-	var string		_time		=	contexts_get_name(contexts, "#",	"session.time",		"1000-2200")
-	var bool		_exclusive	=	contexts_get_flag(contexts, "#",	"session.exclusive",	true)
+	var string		_time		=	contexts_get_name(contexts, "ctx",	"session.time",			"1000-2200")
+	var bool		_exclusive	=	contexts_get_flag(contexts, "ctx",	"session.exclusive",	true)
 	bool			_is_session	=	_exclusive ? bool(time(timeframe.period, _time)) : true
 
 	context_set(_context, "open", 			_is_session)
@@ -1136,11 +1165,11 @@ use_macd_zlema(float source, int length) =>
 
 use_macd(Contexts contexts) =>
 	var Context		_context		=	context_create("macd")
-	var int			_length			=	contexts_get_int(		contexts, "#", "macd.length",		34)
-	var int			_signal_length	=	contexts_get_int(		contexts, "#", "macd.signal",		9)
-	var int			_impulse_length	=	contexts_get_int(		contexts, "#", "macd.impulse",		3)
-	var float		_dmz_factor		=	contexts_get_float(		contexts, "#", "macd.dmz",			6.6)
-	var float		_flat_factor	=	contexts_get_float(		contexts, "#", "macd.flat",			0.1)
+	var int			_length			=	contexts_get_int(		contexts, "ctx", "macd.length",		34)
+	var int			_signal_length	=	contexts_get_int(		contexts, "ctx", "macd.signal",		9)
+	var int			_impulse_length	=	contexts_get_int(		contexts, "ctx", "macd.impulse",	3)
+	var float		_dmz_factor		=	contexts_get_float(		contexts, "ctx", "macd.dmz",		6.6)
+	var float		_flat_factor	=	contexts_get_float(		contexts, "ctx", "macd.flat",		0.1)
 
 	_high 		= use_macd_smma(	high, 	_length)
 	_low		= use_macd_smma(	low,	_length)
@@ -1185,10 +1214,10 @@ use_macd(Contexts contexts) =>
 
 use_super_trend(Contexts contexts) =>
 	var Context	_context		=	context_create("super-trend")
-	var int		_fast_length	=	contexts_get_int(		contexts, "#",	"super-trend.fast-length",		7)
-	var float	_fast_factor	=	contexts_get_float(		contexts, "#",	"super-trend.fast-factor",		1)
-	var int		_slow_length	=	contexts_get_int(		contexts, "#",	"super-trend.slow-length",		20)
-	var float	_slow_factor	=	contexts_get_float(		contexts, "#",	"super-trend.slow-factor",		5)
+	var int		_fast_length	=	contexts_get_int(		contexts, "ctx",	"super-trend.fast-length",		7)
+	var float	_fast_factor	=	contexts_get_float(		contexts, "ctx",	"super-trend.fast-factor",		1)
+	var int		_slow_length	=	contexts_get_int(		contexts, "ctx",	"super-trend.slow-length",		20)
+	var float	_slow_factor	=	contexts_get_float(		contexts, "ctx",	"super-trend.slow-factor",		5)
 
 	[_fast_signal, _fast_trend] = ta7.supertrend2(_fast_factor, _fast_length, false)
 	[_slow_signal, _slow_trend] = ta7.supertrend2(_slow_factor, _slow_length, false)
@@ -1224,7 +1253,7 @@ use_super_trend(Contexts contexts) =>
 
 use_cci(Contexts contexts) =>
 	var Context	_context	=	context_create("cci")
-	var int		_length		=	contexts_get_int(	contexts, "#",	"cci.length",		20)
+	var int		_length		=	contexts_get_int(	contexts, "ctx",	"cci.length",		20)
 
 	_signal = ta.cci(hlc3, _length)
 
@@ -1248,23 +1277,14 @@ use_cci(Contexts contexts) =>
 
 use_ema(Contexts contexts) =>
 	var Context			_context	=	context_create("ema")
-	var int				_length_1	=	contexts_get_int(	contexts, "#", "ema.length-1",		20)
-	var int				_length_2	=	contexts_get_int(	contexts, "#", "ema.length-2",		50)
-	var int				_length_3	=	contexts_get_int(	contexts, "#", "ema.length-3",		200)
+	var int				_length_1	=	contexts_get_int(	contexts, "ctx", "ema.length-1",		20)
+	var int				_length_2	=	contexts_get_int(	contexts, "ctx", "ema.length-2",		50)
+	var int				_length_3	=	contexts_get_int(	contexts, "ctx", "ema.length-3",		200)
 	float 				_factor		=	contexts_get_float(	contexts, "day", "factor", 0)
 
 	_ema_1	=	ta7.ema2(close, _length_1)
 	_ema_2	=	ta7.ema2(close, _length_2)
 	_ema_3	=	ta7.ema2(close, _length_3)
-
-	context_set(_context, "cross.1-2",		ta.crossover(_ema_1, _ema_2))
-	context_set(_context, "cross.1-3",		ta.crossover(_ema_1, _ema_3))
-
-	context_set(_context, "cross.2-1",		ta.crossover(_ema_2, _ema_1))
-	context_set(_context, "cross.2-3",		ta.crossover(_ema_2, _ema_3))
-
-	context_set(_context, "cross.3-1",		ta.crossover(_ema_3, _ema_1))
-	context_set(_context, "cross.3-2",		ta.crossover(_ema_3, _ema_2))
 
 	context_set(_context,	level("1", _ema_1, _factor))
 	context_set(_context,	level("2", _ema_2, _factor))
@@ -1281,12 +1301,16 @@ use_structure(Contexts contexts) =>
 	var Context				_context		=	context_create("structure")
 	var float[]				_levels     	=	array.new<float>()
 	map<string, Level>		_structure		=	map.new<string, Level>()
-	var int					_i_length		=	contexts_get_int(	contexts, "#", "structure.length",		20)
-	var float				_i_deviation	=	contexts_get_int(	contexts, "#", "structure.deviation",	0)
+	var int					_i_length		=	contexts_get_int(	contexts, "ctx", "structure.length")
+	var float				_i_deviation	=	contexts_get_int(	contexts, "ctx", "structure.deviation")
 	var int					_lowest     	= 1
 	var int					_highest    	= 1
 	float					_level_low		= na
 	float					_level_high		= na
+
+	if use_init()
+		context_set(_context, "low",	value(level(na)))
+		context_set(_context, "high",	value(level(na)))
 
 	context_set(_context, "change", false)
 
@@ -1366,10 +1390,10 @@ trend_create() =>
 use_trends(Contexts[] candles, Contexts contexts) =>
 	var Context	_context	=	context_create("trends")
 
-	float	_factor		=	contexts_get_float(	contexts, "#", "trends.factor",		0.2)
-	int		_touches	=	contexts_get_int(	contexts, "#", "trends.touches",	3)
-	int		_count		=	contexts_get_int(	contexts, "#", "trends.count",		3)
-	int		_trend		=	contexts_get_int(	contexts, "#", "trends.trend",		3)
+	float	_factor		=	contexts_get_float(	contexts, "ctx", "trends.factor")
+	int		_touches	=	contexts_get_int(	contexts, "ctx", "trends.touches")
+	int		_count		=	contexts_get_int(	contexts, "ctx", "trends.count")
+	int		_trend		=	contexts_get_int(	contexts, "ctx", "trends.trend")
 
 	//	Currently tested set of all candles
 	Test[]	_tests		=	array.new<Test>()
@@ -1654,8 +1678,8 @@ plot(i_super_trend_2 and	contexts_get_flag(_contexts, "super-trend", "slow.down"
 //      Render Trade flags
 //  ====================================================================================================================================================
 
-plotshape(contexts_get_flag(_contexts, "#", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)
-plotshape(contexts_get_flag(_contexts, "#", "sell"),	"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,	display = display.pane)
+plotshape(contexts_get_flag(_contexts, "ctx", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)
+plotshape(contexts_get_flag(_contexts, "ctx", "sell"),	"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,	display = display.pane)
 
 plotshape(contexts_get_flag(_contexts, "trade", "closed"),	"Closed",		style = shape.xcross,		location = location.abovebar, color = color.red,		display = display.pane)
 

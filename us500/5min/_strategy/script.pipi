@@ -209,7 +209,7 @@ pattern
 	;
 
 	action
-		hint		short -> long reversal
+		hint		long reversal [short]
 
 		set
 			flag	b:#.buy	true

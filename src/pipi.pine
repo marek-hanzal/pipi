@@ -44,7 +44,14 @@ import TradingView/ta/7 as ta7
 //  ====================================================================================================================================================
 
 const string	_script_hint		=	"You should pass your strategy script here, documentation is on the project's GitHub page (see indicator homepage for details)."
-var	string		i_script			=	input.text_area("", "- 😎 Script 😎 -",	display = display.none,	tooltip = _script_hint)
+var	string		i_script_1			=	input.text_area("", "- 😎 Script #1 😎 -",	display = display.none,	tooltip = _script_hint)
+var	string		i_script_2			=	input.text_area("", "- 😎 Script #2 😎 -",	display = display.none,	tooltip = _script_hint)
+var	string		i_script_3			=	input.text_area("", "- 😎 Script #3 😎 -",	display = display.none,	tooltip = _script_hint)
+var	string		i_script_4			=	input.text_area("", "- 😎 Script #4 😎 -",	display = display.none,	tooltip = _script_hint)
+var	string		i_script_5			=	input.text_area("", "- 😎 Script #5 😎 -",	display = display.none,	tooltip = _script_hint)
+
+// hack, hehehe
+var string[]		i_script	=	array.from(i_script_1, i_script_2, i_script_3, i_script_4, i_script_5)
 
 const string	group_plots			=	"- 📈 Plots 📈 -"
 var bool		i_day_level			=	input.bool(	true,	"Day Low/High",			group = group_plots, display = display.none,	inline = "day")
@@ -884,62 +891,64 @@ parse_action(string[] stack, string line, Action action) =>
 
 	action
 
-parse(string script) =>
-	string[]		_source		=	str.split(str.trim(script), "\n")
-	string[]		_stack		=	array.new<string>()
-
+parse(string[] script) =>
 	Script			_script		=	script_create()
 	SetValue[]		_set_value	=	na
 	Action			_action		=	na
 	Pattern			_pattern	=	na
 	Candle			_candle		=	na
+	string[]		_stack		=	array.new<string>()
 
-	for _line in _source
-		_text = str.trim(_line)
 
-		if str.startswith(_text, '//') or str.length(_text) == 0
-			continue
+	for __source in script
+		string[]		_source		=	str.split(str.trim(__source), "\n")
 
-		switch _text
-			"init" =>
-				_set_value:=	_script.init.set_value
-				_stack.push("parse_init")
+		for _line in _source
+			_text = str.trim(_line)
+
+			if str.startswith(_text, '//') or str.length(_text) == 0
 				continue
 
-			"pattern" =>
-				_pattern	:=	pattern_create()
-				_action		:=	_pattern.action
-				_script.pattern.push(_pattern)
-				_stack.push("parse_pattern")
-				continue
+			switch _text
+				"init" =>
+					_set_value:=	_script.init.set_value
+					_stack.push("parse_init")
+					continue
 
-			"candle" =>
-				_candle:=	candle_create()
-				_pattern.candle.push(_candle)
+				"pattern" =>
+					_pattern	:=	pattern_create()
+					_action		:=	_pattern.action
+					_script.pattern.push(_pattern)
+					_stack.push("parse_pattern")
+					continue
 
-			"action" =>
-				_set_value:=	_pattern.action.set_value
+				"candle" =>
+					_candle:=	candle_create()
+					_pattern.candle.push(_candle)
 
-			";"	=>
-				_stack.pop()
-				continue
+				"action" =>
+					_set_value:=	_pattern.action.set_value
 
-		if _stack.size() > 0
-			switch _stack.last()
-				"parse_init" =>
-					parse_init(_stack, _text, _script.init)
+				";"	=>
+					_stack.pop()
+					continue
 
-				"parse_set" =>
-					parse_set(_text, _set_value)
+			if _stack.size() > 0
+				switch _stack.last()
+					"parse_init" =>
+						parse_init(_stack, _text, _script.init)
 
-				"parse_pattern" =>
-					parse_pattern(_stack, _text, _pattern)
+					"parse_set" =>
+						parse_set(_text, _set_value)
 
-				"parse_pattern_candle" =>
-					parse_pattern_candle(_text, _candle)
+					"parse_pattern" =>
+						parse_pattern(_stack, _text, _pattern)
 
-				"parse_action" =>
-					parse_action(_stack, _text, _action)
+					"parse_pattern_candle" =>
+						parse_pattern_candle(_text, _candle)
+
+					"parse_action" =>
+						parse_action(_stack, _text, _action)
 
 	log.info("=== Init")
 
@@ -1010,6 +1019,8 @@ action_trade(Init init, Action action, Contexts contexts) =>
 				contexts_state(contexts,	"trade", "loss",	_loss)
 				//	Reset trade length to zero
 				contexts_counter(contexts,	"trade", "length",	na)
+
+				alert(action.hint)
 
 	if bool(strategy.position_size) and action.close
 		contexts_bar(contexts,		"trade", "closed",	true)
@@ -1588,30 +1599,16 @@ use_trends(Contexts[] candles, Contexts contexts) =>
 		render_level("trend.low", _test.level, _test.index.first(), na, color.yellow)
 
 	var	line	_trend_up_line		=	na
-	var	line	_trend_up_price		=	na
-	var	line	_trend_up_close		=	na
-
 	var	line	_trend_down_line	=	na
-	var	line	_trend_down_price	=	na
-	var	line	_trend_down_close	=	na
 
 	line.delete(_trend_up_line)
-	line.delete(_trend_up_price)
-	line.delete(_trend_up_close)
-
 	line.delete(_trend_down_line)
-	line.delete(_trend_down_price)
-	line.delete(_trend_down_close)
 
 	if _trend_up.count	>= _trend
 		_trend_up_line	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.index,		_trend_up.close,	extend = extend.both, color = color.green)
-		_trend_up_price	:=	line.new(_trend_up.start, _trend_up.price,	_trend_up.start + 1,	_trend_up.price,	extend = extend.right, style = line.style_dashed,	color = color.new(color.red, 50))
-		_trend_up_close	:=	line.new(_trend_up.start, _trend_up.close,	_trend_up.start + 1,	_trend_up.close,	extend = extend.right, style = line.style_dashed,	color = color.new(color.green, 50))
 
 	if _trend_down.count	>= _trend
 		_trend_down_line	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.index,		_trend_down.close,	extend = extend.both, color = color.red)
-		_trend_down_price	:=	line.new(_trend_down.start,	_trend_down.price,	_trend_down.start + 1,	_trend_down.price,	extend = extend.right, style = line.style_dashed,	color = color.new(color.green, 50))
-		_trend_down_close	:=	line.new(_trend_down.start,	_trend_down.close,	_trend_down.start + 1,	_trend_down.close,	extend = extend.right, style = line.style_dashed,	color = color.new(color.red, 50))
 
 	use_context(contexts, _context)
 
@@ -1621,7 +1618,7 @@ use_trends(Contexts[] candles, Contexts contexts) =>
 //  ====================================================================================================================================================
 
 //	@function	Main entry point of this indicator; even without any plotting, it could be used for strategy testing using TradingView built-in tester
-main(string script) =>
+main(string[] script) =>
 	//	Contexts used in this indicator
 	var Contexts	_contexts	=	contexts_create()
 	//	Candles (contexts) used to detect patterns
@@ -1790,23 +1787,23 @@ fill(_plot_0100_1, _plot_0100_2, _color_0100,	"Structure Fibb - 100 (fill)")
 //      Render Profit/Loss for trades
 //  ====================================================================================================================================================
 
-_profit_long	=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
-_loss_long		=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
-fill(_profit_long, _loss_long, title = "Long Background", color = color.new(color.green, 90))
+_profit_long	=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.green, 50),	display = display.pane)
+_loss_long		=	plot(contexts_state_flag(_contexts, "trade", "long") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.red, 50),	display = display.pane)
+fill(_profit_long, _loss_long, title = "Long Background", color = color.new(color.green, 95))
 
-_profit_short	=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Short Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.green,	display = display.pane)
-_loss_short		=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 4, color = color.red,	display = display.pane)
-fill(_profit_short, _loss_short, title = "Short Background", color = color.new(color.red, 90))
+_profit_short	=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "profit")	:	na,		"Short Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.green, 50),	display = display.pane)
+_loss_short		=	plot(contexts_state_flag(_contexts, "trade", "short") ? contexts_state_value(_contexts, "trade", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.red, 50),	display = display.pane)
+fill(_profit_short, _loss_short, title = "Short Background", color = color.new(color.red, 95))
 
 //  ====================================================================================================================================================
 //      Render SuperTrend
 //  ====================================================================================================================================================
 
-plot(i_super_trend_1 and	contexts_bar_flag(_contexts, "super-trend", "fast.up")		?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Uptrend",		linewidth = 2,	style = plot.style_linebr,	color = color.new(color.navy, 50),		display = display.pane)
-plot(i_super_trend_1 and	contexts_bar_flag(_contexts, "super-trend", "fast.down")	?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Downtrend",	linewidth = 2,	style = plot.style_linebr,	color = color.new(color.maroon, 50),	display = display.pane)
+plot(i_super_trend_1 and	contexts_bar_flag(_contexts, "super-trend", "fast.up")		?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Uptrend",		linewidth = 2,	style = plot.style_linebr,	color = color.new(color.navy, 25),		display = display.pane)
+plot(i_super_trend_1 and	contexts_bar_flag(_contexts, "super-trend", "fast.down")	?	contexts_bar_value(_contexts, "super-trend", "fast.signal") : na, "SuperTrend - Fast Downtrend",	linewidth = 2,	style = plot.style_linebr,	color = color.new(color.maroon, 25),	display = display.pane)
 
-plot(i_super_trend_2 and	contexts_bar_flag(_contexts, "super-trend", "slow.up")		?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Uptrend",		linewidth = 3,	style = plot.style_linebr,	color = color.new(color.navy, 50),		display = display.pane)
-plot(i_super_trend_2 and	contexts_bar_flag(_contexts, "super-trend", "slow.down")	?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Downtrend",	linewidth = 3,	style = plot.style_linebr,	color = color.new(color.maroon, 50),	display = display.pane)
+plot(i_super_trend_2 and	contexts_bar_flag(_contexts, "super-trend", "slow.up")		?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Uptrend",		linewidth = 3,	style = plot.style_linebr,	color = color.new(color.navy, 25),		display = display.pane)
+plot(i_super_trend_2 and	contexts_bar_flag(_contexts, "super-trend", "slow.down")	?	contexts_bar_value(_contexts, "super-trend", "slow.signal") : na, "SuperTrend - Slow Downtrend",	linewidth = 3,	style = plot.style_linebr,	color = color.new(color.maroon, 25),	display = display.pane)
 
 //  ====================================================================================================================================================
 //      Render Trade flags

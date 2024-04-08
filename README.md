@@ -9,6 +9,8 @@
 
 Before everything else: try whatever you find here, **test** your own mutations of strategies, but keep in mind - you're on the market and no indicator nor system is _**absolutly perfect**_.
 
+**Keep in mind that this tool is extremely experimental, meaning I'm still trying to find its limits.**
+
 ## Intro
 
 **PiPi** is a **_trading system_** which takes quite _different_ approach. Base idea is to _describe_ a strategy using simple custom language, so it behaves all

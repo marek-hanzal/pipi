@@ -1,8 +1,11 @@
 # Dev
 
+_**Breaking changes included. Sorry**_
+
 -	Updated SuperTrend visibility
 - 	Removed trend lines (they were not useful)
 - 	Added alerts
+- 	Simplified variable access; there is no longer any scope; each indicator manages its state individually
 
 # 2024-04-07
 

@@ -60,7 +60,7 @@ pattern
 		bool	$candle.bull-engulfing
 	;
 	action
-		profit	$candle.top			+	4.5
+		profit	$candle.top			+	4
 		loss	$day.level.low		-	$day.size(0.4)
 		size	2
 		long

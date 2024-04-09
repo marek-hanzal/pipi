@@ -154,8 +154,10 @@ type Rule
 	string[]			value
 
 //	@type				Rules on a single Candle
+//  @field  stop        True - when rules of this candle are true, this candle breaks pattern matching
 //	@field	rule		Rules to check
 type Candle
+    bool                stop
 	Rule[]				rule
 
 //	@type				Holds simple math equation
@@ -167,11 +169,22 @@ type Math
 	string				operator
 	string[]			right
 
+//  @type               Action can create a mark (label)
+//  @field  title       Text to display
+//  @field  color       Mark color
+type Mark
+    string              title
+    string              hint
+    string              color
+    string              text_color
+    string              position
+
 //	@type				When a pattern matches, execute an action
 //	@field	set_value	Set values
 //	@field	profit		Set profit (does not execute a trade)
 //	@field	loss		Set loss (does not execute a trade)
 //	@field	order		> 0, long, < 0 short, everything else - nothing
+//  @field  mark        Action may display mark (label)
 type Action
 	string				hint
 	SetValue[]			set_value
@@ -180,6 +193,7 @@ type Action
     string[]            size
 	int					order
 	bool				close
+    Mark                mark
 
 //	@type				Pattern used to match multiple candles
 //	@field	strict		Strict means all candles must be next to each other; non-strict - pattern is checked on the fly, last matching candle commits true
@@ -213,8 +227,9 @@ type Script
 
 math_create(string[] left)									=>	Math.new(left, na, array.new<string>())
 math_create(string[] left, string operator, string[] right)	=>	Math.new(left, operator, right)
-candle_create()                                             =>  Candle.new(array.new<Rule>())
-action_create()                                             =>  Action.new(na, array.new<SetValue>(), na, na, array.from("2"), 0, false)
+candle_create()                                             =>  Candle.new(false, array.new<Rule>())
+mark_create()                                               =>  Mark.new(na, na, "blue", "white", "above")
+action_create()                                             =>  Action.new(na, array.new<SetValue>(), na, na, array.from("2"), 0, false, na)
 pattern_create()                                            =>  Pattern.new(na, 0, false, true, array.new<Candle>(), action_create())
 init_create()                                               =>  Init.new(0, true, true, array.new<SetValue>())
 script_create()                                             =>  Script.new(init_create(), array.new<Pattern>())
@@ -306,6 +321,37 @@ level_render(string name, Level level, int index, int last, color color, bool si
 //  ====================================================================================================================================================
 //      Common methods
 //  ====================================================================================================================================================
+
+color_of(string input) =>
+    switch input
+        "aqua"      => color.aqua
+        "blue"      => color.blue
+        "fuchsia"   => color.fuchsia
+        "green"     => color.green
+        "red"       => color.red
+        "lime"      => color.lime
+        "teal"      => color.teal
+        "maroon"    => color.maroon
+        "navy"      => color.navy
+        "yellow"    => color.yellow
+        "purple"    => color.purple
+        "orange"    => color.orange
+        "olive"     => color.olive
+        "white"     => color.white
+        "black"     => color.black
+        =>  color.blue
+
+yloc_of(string input) =>
+    switch input
+        "above"    =>   yloc.abovebar
+        "below"    =>   yloc.belowbar
+        =>  yloc.abovebar
+
+style_yloc_of(string input) =>
+    switch input
+        "above"    =>   label.style_label_down
+        "below"    =>   label.style_label_up
+        =>  label.style_label_down
 
 //  --- Hack used to call block one time only, useful for setting up var arrays/maps which cannot be created in one statement
 
@@ -595,7 +641,7 @@ parse_pattern(string[] stack, string line, Pattern pattern) =>
 //  --- Parse: Pattern -> Candle -> Flag
 //      Resolve candle condition for flags (bool values)
 
-parse_pattern_candle_flag(string[] rule, bool flag, Candle candle) =>
+parse_pattern_candle_bool(string[] rule, bool flag, Candle candle) =>
 	_key = parse_key(rule.get(0))
 	if _key.size() == 2
 		candle.rule.push(Rule.new("bool", _key, "=", array.from(flag ? "true" : "false")))
@@ -603,16 +649,9 @@ parse_pattern_candle_flag(string[] rule, bool flag, Candle candle) =>
 //  --- Parse: Pattern -> Candle -> Value
 //      Resolve candle condition using value comparison
 
-parse_pattern_candle_value(string[] rule, Candle candle) =>
-	_key = parse_key(rule.get(0))
-	if _key.size() == 2 and rule.size() == 2
-		candle.rule.push(Rule.new("float", _key, rule.get(1), parse_key(rule.get(2))))
-
-//  --- Parse: Pattern -> Candle -> Cross
-//      Support for cross under/over detection
-
-parae_pattern_candle_cross(string[] rule, Candle candle) =>
-	candle.rule.push(Rule.new("cross", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
+parse_pattern_candle_float(string[] rule, Candle candle) =>
+	if rule.size() == 3
+		candle.rule.push(Rule.new("float", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
 
 //  --- Parse: Pattern -> Candle
 //      Candle parsing gateway (resolves candle rules and everything related to candle section parsing)
@@ -621,22 +660,19 @@ parse_pattern_candle(string line, Candle candle) =>
 	_rule = str.split(line, "\t")
 
 	switch _rule.get(0)
+        "break"     =>
+            candle.stop:=   true
 		"bool"		=>
 			_rule.shift()
-			parse_pattern_candle_flag(_rule, true, candle)
+			parse_pattern_candle_bool(_rule, true, candle)
 
 		"!bool"		=>
 			_rule.shift()
-			parse_pattern_candle_flag(_rule, false, candle)
+			parse_pattern_candle_bool(_rule, false, candle)
 
 		"float"		=>
 			_rule.shift()
-			parse_pattern_candle_value(_rule, candle)
-
-		"cross" =>
-			_rule.shift()
-			if _rule.size() == 3
-				parae_pattern_candle_cross(_rule, candle)
+			parse_pattern_candle_float(_rule, candle)
 
 	candle
 
@@ -664,6 +700,32 @@ parse_action_profit_loss(string[] source, Action action) =>
 	action
 
 
+parse_action_mark(string line, Mark mark) =>
+    _line   =   str.split(line, "\t")
+
+    switch  _line.get(0)
+        "text"  =>
+            if _line.size() == 2
+                mark.title:=    _line.get(1)
+
+        "color"  =>
+            if _line.size() == 2
+                mark.color:=    _line.get(1)
+
+        "text-color"  =>
+            if _line.size() == 2
+                mark.text_color:=   _line.get(1)
+
+        "hint"  =>
+            if _line.size() == 2
+                mark.hint:=   _line.get(1)
+
+        "position"  =>
+            if _line.size() == 2
+                mark.position:=   _line.get(1)
+
+    mark
+
 //  --- Parse: Pattern -> Action
 //      Gateway for all supported actions in the script
 
@@ -673,6 +735,7 @@ parse_action(string[] stack, string line, Action action) =>
 	switch _action.get(0)
 		"hint"				=>	action.hint:=	_action.size() == 2 ? _action.get(1) : na
 		"set"				=>	stack.push("parse_set")
+        "mark"				=>	stack.push("parse_action_mark")
 		"profit"			=>	parse_action_profit_loss(_action, action)
 		"loss"				=>	parse_action_profit_loss(_action, action)
         "size"              =>
@@ -729,6 +792,9 @@ parse(string[] script) =>
 				"action" =>
 					_set_value:=	_pattern.action.set_value
 
+                "mark" =>
+                    _action.mark:=  mark_create()
+
 				";"	=>
 					_stack.pop()
 					continue
@@ -750,6 +816,9 @@ parse(string[] script) =>
 					"parse_action" =>
 						parse_action(_stack, _text, _action)
 
+                    "parse_action_mark" =>
+						parse_action_mark(_text, _action.mark)
+
 	log.info("=== Init")
 
 	for _v in _script.init.set_value
@@ -759,7 +828,7 @@ parse(string[] script) =>
 		log.info("=== Pattern [{0} - {1}]", na(_pattern.name) ? " - na - " : _pattern.name, __pattern.strict ? "strict" : "non-strict")
 
 		for __candle in __pattern.candle
-			log.info("== Candle")
+			log.info("== Candle [{0}]", __candle.stop ? "Breaker" : "Common")
 			for __rule in __candle.rule
 				log.info("- Rule [{0}] {1} {2} {3}", __rule.target, __rule.key, __rule.operator, __rule.value)
 
@@ -778,6 +847,9 @@ parse(string[] script) =>
 
 		if __pattern.action.order < 0
 			log.info("-	Short")
+
+        if not na(__pattern.action.mark)
+            log.info("Mark [{0}], color [{1}]", __pattern.action.mark.title, __pattern.action.mark.color)
 
         log.info("-	Position size {0}", __pattern.action.size)
 
@@ -825,6 +897,9 @@ _script_action_trade(Init init, Pattern pattern, Contexts contexts) =>
 			if _entry
 				contexts_set(contexts,	"trade", "entry",	true)
 
+                contexts_set(contexts,	"ctx",  "buy",     _action.order > 0)
+				contexts_set(contexts,	"ctx",  "sell",     _action.order < 0)
+
 				contexts_set(contexts,	"trade", "long",	_action.order > 0)
 				contexts_set(contexts,	"trade", "short",	_action.order < 0)
 				contexts_set(contexts,	"trade", "profit",	_profit)
@@ -839,11 +914,27 @@ _script_action_trade(Init init, Pattern pattern, Contexts contexts) =>
 		contexts_set(contexts,	"trade", "closed",	true)
 		strategy.close_all("CBA")
 
+//  ---     Script: Render Mark, if any
+
+_script_action_mark(Mark mark) =>
+    if not na(mark)
+        label.new(bar_index,
+         high,
+         xloc = xloc.bar_index,
+         style = style_yloc_of(mark.position),
+         yloc = yloc_of(mark.position),
+         text = mark.title,
+         tooltip = mark.hint,
+         textcolor = color_of(mark.text_color),
+         color = color_of(mark.color)
+         )
+
 //  ---     Script: Internal method for handling action execution
 
 _script_action(Init init, Pattern pattern, Contexts contexts) =>
 	contexts_values(contexts, pattern.action.set_value)
 	_script_action_trade(init, pattern, contexts)
+    _script_action_mark(pattern.action.mark)
 
 //  ---     Script: Init processing
 //          This piece takes "init" section and execute all the actions included
@@ -863,7 +954,9 @@ _script_candle_match(Contexts contexts, Rule rule) =>
 			_left	=	contexts_get_float(contexts,    rule.key)
 			_right	=	contexts_get_float(contexts,    rule.value)
 
-			switch rule.operator
+            // log.info("Rule broken [{0}] [{1} ({2})] [{3}] [{4} ({5})]", rule.target, rule.key, _left, rule.operator, rule.value, _right)
+
+            switch rule.operator
 				">"		=> _left >	_right
 				">="	=> _left >= _right
 				"<"		=> _left <	_right
@@ -871,22 +964,21 @@ _script_candle_match(Contexts contexts, Rule rule) =>
 				"=="	=> _left ==	_right
 				"!="	=> _left !=	_right
 
-		"cross"	=>
-			_left	=	contexts_get_float(contexts,    rule.key)
-			_right	=	contexts_get_float(contexts,    rule.value)
-
-			switch rule.operator
-				"over"		=>	ta.crossover(_left, _right)
-				"under"		=>	ta.crossunder(_left, _right)
-
-
 		=> true
 
 _script_candle_match(Contexts contexts, Candle candle) =>
 	bool _result = true
 
 	for __rule in candle.rule
-		if not _script_candle_match(contexts, __rule)
+        _match  =  _script_candle_match(contexts, __rule)
+
+        if candle.stop
+            if _match
+                _result:=   false
+                break
+            continue
+
+		if not _match
 			_result:= false
 			break
 
@@ -979,7 +1071,7 @@ use_defaults() =>
 		context_set(_context,	"structure.length",		    20)
 		context_set(_context,	"structure.deviation",	    0)
 
-        context_set(_context,	"cci.length",               20)
+        context_set(_context,	"cci.length",               7)
 
         context_set(_context,	"macd2.length",		        34)
         context_set(_context,	"macd2.signal",		        9)
@@ -1040,7 +1132,7 @@ use_candle(Contexts contexts) =>
 	context_set(_context, "close-lt-close",	close	< close[1])
 
 	context_set(_context, "body-gt-body",	_body > _body[1])
-	context_set(_context, "body-tt-body",	_body < _body[1])
+	context_set(_context, "body-lt-body",	_body < _body[1])
 
 	context_set(_context, "up",				_low > _low[1])
 	context_set(_context, "down",			_low < _low[1])
@@ -1333,15 +1425,32 @@ use_ema(Contexts contexts) =>
 	var int			_length_1	=	contexts_get_int(	contexts, "ctx", "ema.length-1",		20)
 	var int			_length_2	=	contexts_get_int(	contexts, "ctx", "ema.length-2",		50)
 	var int			_length_3	=	contexts_get_int(	contexts, "ctx", "ema.length-3",		200)
-	float 			_factor		=	contexts_get_float(	contexts, "day", "factor", 0)
 
 	_ema_1	=	ta7.ema2(close, _length_1)
 	_ema_2	=	ta7.ema2(close, _length_2)
 	_ema_3	=	ta7.ema2(close, _length_3)
 
-	context_set(_context,	level("1", _ema_1, _factor))
-	context_set(_context,	level("2", _ema_2, _factor))
-	context_set(_context,	level("3", _ema_3, _factor))
+    context_set(_context,   "1.over.2", ta.crossover(_ema_1, _ema_2))
+    context_set(_context,   "1.over.3", ta.crossover(_ema_1, _ema_3))
+
+    context_set(_context,   "2.over.3", ta.crossover(_ema_2, _ema_3))
+    context_set(_context,   "2.over.1", ta.crossover(_ema_2, _ema_1))
+
+    context_set(_context,   "3.over.1", ta.crossover(_ema_3, _ema_1))
+    context_set(_context,   "3.over.2", ta.crossover(_ema_3, _ema_2))
+
+    context_set(_context,   "1.under.2", ta.crossunder(_ema_1, _ema_2))
+    context_set(_context,   "1.under.3", ta.crossunder(_ema_1, _ema_3))
+
+    context_set(_context,   "2.under.3", ta.crossunder(_ema_2, _ema_3))
+    context_set(_context,   "2.under.1", ta.crossunder(_ema_2, _ema_1))
+
+    context_set(_context,   "3.under.1", ta.crossunder(_ema_3, _ema_1))
+    context_set(_context,   "3.under.2", ta.crossunder(_ema_3, _ema_2))
+
+	context_set(_context,	level("1", _ema_1, 0))
+	context_set(_context,	level("2", _ema_2, 0))
+	context_set(_context,	level("3", _ema_3, 0))
 
 	use_context(contexts, _context)
 
@@ -1616,7 +1725,7 @@ main(string[] script) =>
 	//	Also keep in mind that when you use non-strict pattern matching, you may need much more candles
 	//
 	//	Last note: this limit is hardcoded, because it may take *a lot* of TradingViews resources, so I must be somehow sure this number is reasonable.
-	const int		_limit		=	20
+	const int		_limit		=	15
 	var Script	    _script		=	parse(script)
 
 	//	Ensures all global default variables are available
@@ -1786,10 +1895,9 @@ plot(i_super_trend_2 and	contexts_get_bool(_contexts, "super-trend", "slow.down"
 //      Render Trade flags
 //  ====================================================================================================================================================
 
-plotshape(contexts_get_bool(_contexts, "ctx", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,		display = display.pane)
-plotshape(contexts_get_bool(_contexts, "ctx", "sell"),		"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,	display = display.pane)
-
-plotshape(contexts_get_bool(_contexts, "trade", "closed"),	"Closed",			style = shape.xcross,		location = location.abovebar, color = color.red,		display = display.pane)
+plotshape(contexts_get_bool(_contexts, "ctx", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,       display = display.pane)
+plotshape(contexts_get_bool(_contexts, "ctx", "sell"),		"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,    display = display.pane)
+plotshape(contexts_get_bool(_contexts, "trade", "closed"),	"Closed",			style = shape.xcross,		location = location.abovebar, color = color.red,        display = display.pane)
 
 //  ====================================================================================================================================================
 //      Session

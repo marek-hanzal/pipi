@@ -1,5 +1,5 @@
 init
-	priority	15
+	priority	0
 	long		true
 	short		true
 	set
@@ -8,7 +8,7 @@ init
 
 		float	$ctx.factor						0.1
 
-		float	$ctx.cci.length					25
+		float	$ctx.cci.length					7
 
 		float	$ctx.macd.length				9
 		float	$ctx.macd.signal				5
@@ -16,9 +16,9 @@ init
 		float	$ctx.macd.impulse				3
 		float	$ctx.macd.flat					0.1
 
-		float	$ctx.ema.length-1				12
-		float	$ctx.ema.length-2				50
-		float	$ctx.ema.length-3				200
+		float	$ctx.ema.length-1				10
+		float	$ctx.ema.length-2				30
+		float	$ctx.ema.length-3				100
 
 		float	$ctx.super-trend.fast-length	12
 		float	$ctx.super-trend.fast-factor	1
@@ -137,6 +137,21 @@ pattern
 	;
 ;
 
+pattern
+	name		Short: CCI + EMA
+	priority	1000
+	candle
+		cross	$ema.1.level	under	$ema.2.level
+	;
+	action
+		mark
+			hint		EMA 1 crossed under EMA 2
+			color		red
+			position	above
+		;
+	;
+;
+
 //	==============================
 //	Quite rare, incredibly accurate, quite profitable
 //
@@ -145,22 +160,17 @@ pattern
 //	-	Above EMA 1
 pattern
 	name		long cci
-	priority	25
+	priority	50
 	candle
 		bool	$candle.green
 		bool	$cci.below.exit
 	;
-	candle
-		bool	$candle.green
-		bool	$candle.day-fibbonachi.70.wicks-over
-		bool	$super-trend.fast.up
-
-		float	$candle.low	>	$ema.1.level
-		float	$candle.low	>	$day-fibbonachi.100.high
-	;
 	action
-		set
-			bool	$ctx.buy		true
+		mark
+			hint		This is hover hint, bro!
+			color		orange
+			text-color	black
+			position	below
 		;
 		profit		$candle.top		+	$ctx.take-profit(1)
 		loss		$day.level.low	-	$ctx.stop-loss(0.25)

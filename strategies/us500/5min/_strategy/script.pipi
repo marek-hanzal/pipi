@@ -2,37 +2,37 @@ init
 	priority	15
 	long		true
 	short		true
-
 	set
-		name	$ctx.session.time				0900-2300
-		flag	$ctx.session.exclusive			true
+		string	$ctx.session.time				0900-2300
+		bool	$ctx.session.exclusive			true
 
-		value	$ctx.factor					0.3
+		float	$ctx.factor						0.1
 
-		value	$ctx.cci.length				25
+		float	$ctx.cci.length					25
 
-		value	$ctx.macd.length				9
-		value	$ctx.macd.signal				5
-		value	$ctx.macd.dmz					4.5
-		value	$ctx.macd.impulse				3
-		value	$ctx.macd.flat					0.1
+		float	$ctx.macd.length				9
+		float	$ctx.macd.signal				5
+		float	$ctx.macd.dmz					4.5
+		float	$ctx.macd.impulse				3
+		float	$ctx.macd.flat					0.1
 
-		value	$ctx.ema.length-1				12
-		value	$ctx.ema.length-2				50
-		value	$ctx.ema.length-3				200
+		float	$ctx.ema.length-1				12
+		float	$ctx.ema.length-2				50
+		float	$ctx.ema.length-3				200
 
-		value	$ctx.super-trend.fast-length	12
-		value	$ctx.super-trend.fast-factor	1
-		value	$ctx.super-trend.slow-length	24
-		value	$ctx.super-trend.slow-factor	5
+		float	$ctx.super-trend.fast-length	12
+		float	$ctx.super-trend.fast-factor	1
+		float	$ctx.super-trend.slow-length	24
+		float	$ctx.super-trend.slow-factor	5
 
-		value	$ctx.trends.factor				0.2
-		value	$ctx.trends.touches			3
-		value	$ctx.trends.count				3
-		value	$ctx.trends.trend				3
+		float	$ctx.trends.factor				0.2
+		float	$ctx.trends.touches				3
+		float	$ctx.trends.count				3
+		float	$ctx.trends.trend				3
 
-		value	$ctx.take-profit				5
-		value	$ctx.stop-loss					5
+		float	$ctx.take-profit				5
+		float	$ctx.stop-loss					5
+		float	$ctx.position-size				2
 	;
 ;
 
@@ -45,23 +45,18 @@ init
 //	-	MACD long signal
 //	-	Fast SuperTrend uptrend
 pattern
+	name			macd.long + fast trend
 	priority		0
-
 	candle
-		flag	$macd.long
-		flag	$super-trend.fast.up
+		bool	$macd2.long
+		bool	$super-trend.fast.up
 	;
-
 	action
-		hint	macd.long + fast trend
-
 		set
-			flag	$ctx.buy			true
+			bool	$ctx.buy			true
 		;
-
 		profit		$candle.top		+	$ctx.take-profit(0.75)
 		loss		$candle.bottom	-	$ctx.stop-loss(0.7)
-
 		long
 	;
 ;
@@ -73,27 +68,21 @@ pattern
 //	-	MACD short signal
 //	-	Slow SuperTrend downtrend
 pattern
+	name		macd.long + slow trend
 	priority	50
-
 	candle
-		flag	$macd.short
-		flag	$super-trend.slow.down
+		bool	$macd2.short
+		bool	$super-trend.slow.down
 	;
-
 	candle
-		flag	$candle.green
+		bool	$candle.green
 	;
-
 	action
-		hint	macd.long + slow trend
-
 		set
-			flag	$ctx.buy				true
+			bool	$ctx.buy				true
 		;
-
 		profit		$candle.bottom	+	$ctx.take-profit(3.5)
 		loss		$candle.top		-	$ctx.stop-loss(1.75)
-
 		long
 	;
 ;
@@ -105,23 +94,18 @@ pattern
 //	-	MACD long signal
 //	-	Slow SuperTrend uptrend
 pattern
+	name		macd.long + slow trend
 	priority	20
-
 	candle
-		flag	$macd.long
-		flag	$super-trend.slow.up
+		bool	$macd2.long
+		bool	$super-trend.slow.up
 	;
-
 	action
-		hint	macd.long + slow trend
-
 		set
-			flag	$ctx.buy				true
+			bool	$ctx.buy				true
 		;
-
 		profit		$candle.top		+	$ctx.take-profit(2.5)
 		loss		$candle.bottom	-	$ctx.stop-loss(2.5)
-
 		long
 	;
 ;
@@ -135,15 +119,15 @@ pattern
 	priority	20
 
 	candle
-		flag	$super-trend.fast.up.start
-		flag	$super-trend.slow.up.start
+		bool	$super-trend.fast.up.start
+		bool	$super-trend.slow.up.start
 	;
 
 	action
 		hint	super-trend both started
 
 		set
-			flag	$ctx.buy			true
+			bool	$ctx.buy			true
 		;
 
 		profit		$candle.top		+	$ctx.take-profit(2.5)
@@ -160,32 +144,27 @@ pattern
 //	-	CCI
 //	-	Above EMA 1
 pattern
+	name		long cci
 	priority	25
-
 	candle
-		flag	$candle.green
-		flag	$cci.below.exit
+		bool	$candle.green
+		bool	$cci.below.exit
 	;
-
 	candle
-		flag	$candle.green
-		flag	$candle.day-fibbonachi.70.wicks-over
-		flag	$super-trend.fast.up
+		bool	$candle.green
+		bool	$candle.day-fibbonachi.70.wicks-over
+		bool	$super-trend.fast.up
 
-		value	$candle.low	>	$ema.1.level
-		value	$candle.low	>	$day-fibbonachi.100.high
+		float	$candle.low	>	$ema.1.level
+		float	$candle.low	>	$day-fibbonachi.100.high
 	;
-
 	action
-		hint	long cci
-
 		set
-			flag	$ctx.buy		true
+			bool	$ctx.buy		true
 		;
-
 		profit		$candle.top		+	$ctx.take-profit(1)
 		loss		$day.level.low	-	$ctx.stop-loss(0.25)
-
+		size		$ctx.position-size(0.5)
 		long
 	;
 ;
@@ -196,29 +175,23 @@ pattern
 //	-	long
 //	-	Short -> Long reversal
 pattern
+	name		[long] reversal
 	priority	20
 	strict
-
 	candle
-		flag	$candle.red
-		value	$candle.low	<	$day-fibbonachi.100.high
+		bool	$candle.red
+		float	$candle.low	<	$day-fibbonachi.100.high
 	;
-
 	candle
-		flag	$candle.green
-		value	$candle.low	<	$day-fibbonachi.100.high
+		bool	$candle.green
+		float	$candle.low	<	$day-fibbonachi.100.high
 	;
-
 	action
-		hint		long reversal [short]
-
 		set
-			flag	$ctx.buy	true
+			bool	$ctx.buy	true
 		;
-
 		profit		$candle.top		+	$ctx.take-profit(0.5)
 		loss		$candle.bottom	-	$ctx.stop-loss(0.5)
-
 		long
 	;
 ;
@@ -227,32 +200,25 @@ pattern
 //
 //	-	long
 //	-	Close above EMA 1
-
 pattern
+	name		close above EMA 1
 	priority	20
 	strict
-
 	candle
-		flag	$candle.red
+		bool	$candle.red
 	;
-
 	candle
-		flag	$candle.green
-		value	$candle.close	>	$ema.1.level
-		value	$candle.open	<	$ema.1.level
-		value	$candle.low		<	$day-fibbonachi.100.high
+		bool	$candle.green
+		float	$candle.close	>	$ema.1.level
+		float	$candle.open	<	$ema.1.level
+		float	$candle.low		<	$day-fibbonachi.100.high
 	;
-
 	action
-		hint		close above EMA 1
-
 		set
-			flag	$ctx.buy	true
+			bool	$ctx.buy	true
 		;
-
 		profit		$candle.top		+	$ctx.take-profit(0.5)
 		loss		$candle.bottom	-	$ctx.stop-loss(0.5)
-
 		long
 	;
 ;

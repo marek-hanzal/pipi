@@ -10,7 +10,7 @@ init
 
 		float	$ctx.cci.length					7
 
-		float	$ctx.ema.length-1				10
+		float	$ctx.ema.length-1				8
 		float	$ctx.ema.length-2				30
 	;
 ;

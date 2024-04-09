@@ -4,6 +4,41 @@
 //@version=5
 strategy("PiPi v0.6.0", overlay = true, default_qty_value = 2, currency = currency.USD, pyramiding = 1, process_orders_on_close = false, initial_capital = 1000, max_lines_count = 500, max_bars_back = 4900, max_boxes_count = 500, max_labels_count = 500, calc_on_order_fills = false)
 
+//  ====================================================================================================================================================
+//      Intro
+//			So welcome here. You will *not* believe what you see here as this is not like any other indicator you may know. It's a more like a system,
+//			using it's own "description" language.
+//
+//			For documentation, examples and backtesting results, visit github homepage of the project:
+//			https://github.com/marek-hanzal/pipi
+//
+//			Jump directly to examples for US500 (Pepperstone) on 15min charts:
+//			https://github.com/marek-hanzal/pipi/tree/main/us500/15min
+//
+//			How it works:
+//			-	You write PiPi Script, which says, what are you searching for (candlestick patterns, indicator match and so on)
+//			-	You specify, what you want to do - for example only mark trends, put buy/sell indicator or execute trade using TradingView strategy
+//			-	The script itself describes one strategy, including different patterns
+//			-	You can simply switch to another strategy, just replacing the script; it contains setup for all indicators
+//			-	A lot of common stuff is included (MACD, EMA, SuperTrend, ...)
+//			-	And if you want more, it's incredibly simple to extend the language or add your own indicator you've found elsewhere
+//			-	Bonus? Safe different versions of strategy or just simply share one
+//			-	Another bonus? Timeframe? Doesn't matter, it's up to you, how you setup the indicator
+//
+//		Notes:
+//			-	This (afaik) is quite unique indicator
+//			-	It can be broken to small pieces, scattered in small libraries, but I've decided to keep all the stuff together, so you can see
+//				how all the stuff works
+//			-	There are plenty of indicators, some defaults from TradingView, some stolen from others; I've credited them and I hope they won't be
+//				angry on me; if there is a problem, it's simple to remove that piece
+//			-	You can freely do whatever you want with this piece of software (you - and me included - have to only respect Licence of used
+//				indicators)
+//			-	Most important thing: This system tries to reproduce what you, as a human, are searching for - you've some rules you follow, so the
+//				indicator do the same for unbiased (emotion-less) results you can test. As opposite to other indicators, which uses *you* as the engine
+//				powering trading decisions, here the engine is this system, which behaves predictably, all the times same way.
+//
+//  ====================================================================================================================================================
+
 import TradingView/ta/7 as ta7
 
 //  ====================================================================================================================================================
@@ -1374,6 +1409,40 @@ use_super_trend(Contexts contexts) =>
 	use_context(contexts, _context)
 
 //  ====================================================================================================================================================
+//      Volume analytics
+//  ====================================================================================================================================================
+
+use_volume(Contexts contexts) =>
+    var Context	    _context	=	context_create("volume")
+    var             _low        =   volume
+    var             _high       =   volume
+
+    context_set(_context, "min",    false)
+    context_set(_context, "max",    false)
+
+    context_set(_context, "lower",  volume < volume[1])
+    context_set(_context, "higher", volume > volume[1])
+
+    context_set(_context, "size",   volume)
+
+    if volume < _low
+        context_set(_context, "min", true)
+        _low:=  volume
+
+    else if volume > _high
+        context_set(_context, "max", true)
+        _high:= volume
+
+    if bool(ta.change(time('D')))
+        _low:=  volume
+        _high:= volume
+
+    context_set(_context, "range",      _high - _low)
+    context_set(_context, "percent",   (100 * volume) / ( _high - _low))
+
+    use_context(contexts, _context)
+
+//  ====================================================================================================================================================
 //      Track current trends / structure levels
 //			Because this indicator is somehow under development, I'll keep it here.
 //  ====================================================================================================================================================
@@ -1562,6 +1631,7 @@ main(string[] script) =>
 	//		-	You may want to use "use_day_fibbonachi" results, thus yours "provider" must came after
 	//		-	Communication between individual producers must go through context, so all variables are accessible from PiPi Script
 	//		-	You can simply override default values, if you want - you have to provide all the variables (in short API) the original provider has
+    use_volume                  (_contexts)
 	use_day					    (_contexts)
 	use_day_fibbonachi			(_contexts)
     use_structure		        (_contexts)
@@ -1734,3 +1804,7 @@ bgcolor(contexts_get_bool(_contexts, "session", "open") ? na :color.new(color.gr
 plot(i_ema_1 ? contexts_get_level(_contexts, "ema", "1").level : na, "EMA-1", color = color.blue,		display = display.pane)
 plot(i_ema_2 ? contexts_get_level(_contexts, "ema", "2").level : na, "EMA-2", color = color.orange,	display = display.pane)
 plot(i_ema_3 ? contexts_get_level(_contexts, "ema", "3").level : na, "EMA-3", color = color.purple,	display = display.pane)
+
+//  ====================================================================================================================================================
+//      Experiments (if any)
+//  ====================================================================================================================================================

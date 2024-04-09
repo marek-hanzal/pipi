@@ -61,7 +61,7 @@ pattern
 	;
 	action
 		profit	$candle.top			+	4
-		loss	$day.level.low		-	$day.size(0.4)
+		loss	$day.level.low		-	$day.size(0.35)
 		size	2
 		long
 	;

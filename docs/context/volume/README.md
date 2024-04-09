@@ -5,7 +5,6 @@ This indicator tracks volume of orders and gives some little insight, what's hap
 **Context**: `volume`
 
 **Config**:
-
 _No config needed_
 
 **Flags**:

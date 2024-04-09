@@ -8,11 +8,9 @@ This indicator provides Fibbonachi levels for the day based on lowest / highest 
 *	`$ctx.factor`  - factor used to compute day's factor based on low and high prices (defines fibbonachi level size)
 
 **Flags**:
-
 _No flags provided_
 
 **Values**:
-
 _No values provided_
 
 **Levels**:

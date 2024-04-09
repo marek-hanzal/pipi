@@ -16,14 +16,17 @@ and what to do afterward.
 **Let's see an example:**
 
 ```
-//	Comments are allowed, so you can write anything you want here; keep in mind TradingView has limited number of characters for a script,
-//	so you may want to keep it short and simple or strip comments at all.
+//	Comments are allowed, so you can write anything you want here; keep in mind TradingView has limited
+//	number of characters for a script, so you may want to keep it short and simple or strip comments
+//	at all.
 
-//	Init section is used for setting up environment and all indicators, so you can be sure your strategy will work as expected.
+//	Init section is used for setting up environment and all indicators, so you can be sure your strategy
+//	will work as expected.
 //		- This section should be present only once
 //		- You can set required priority level of your patterns, so you can simply skip some of them
 //		- You can enable or disable long or short trades
-//		- You *should* set all your defaults for indicators here as I may change defaults in the future breaking your strategy
+//		- You *should* set all your defaults for indicators here as I may change defaults in the future
+//			breaking your strategy
 init
 	//	Set required priority level; all patterns with lower priority will be skipped
 	priority	15

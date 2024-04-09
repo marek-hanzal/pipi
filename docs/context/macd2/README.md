@@ -8,7 +8,7 @@ This is improved version of MACD with some extra features, which enables a bit m
 *	`$ctx.macd2.length`     - MACD length
 *   `$ctx.macd2.signal`     - signal length
 *   `$ctx.macd2.impulse`    - how many bars (in flat histogram) to wait to generate impulse signal
-*   `$ctx.macd2.dmz`        - demilitarized zone - marks part of histogram, where no strong signals are generated; be careful using this value as it may change on the marker you're on, and also by time on the same market
+*   `$ctx.macd2.dmz`        - demilitarized zone - marks part of histogram, where no strong signals are generated; _be careful using this value as it may change on the marker you're on, and also by time on the same market_
 *   `$ctx.macd2.flat`       - what is considered being flat market (in histogram); this value should be kept somehow low (like 0.1, 0.2 or so)
 
 **Flags**:

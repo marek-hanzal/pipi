@@ -11,4 +11,5 @@ Here are all contexts you can use in PiPi Trading System.
 * [Session](session)
 * [Structure](structure)
 * [Structure Fibbonachi](structure-fibbonachi)
+* [SuperTrend](super-trend)
 * [Volume](volume)

@@ -38,3 +38,6 @@ _No config needed_
 * `$candle.length`   - high - low
 * `$candle.top`      - top price (max of open and close)
 * `$candle.bottom`   - bottom price (min of open and close)
+
+**Levels**:
+_No levels provided_

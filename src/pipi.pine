@@ -319,6 +319,138 @@ level_render(string name, Level level, int index, int last, color color, bool si
 	true
 
 //  ====================================================================================================================================================
+//      Calculations
+//  ====================================================================================================================================================
+
+smma(series int length, float source) =>
+	float smma = 0
+	sma = ta.sma(source, length)
+	smma:= na(smma[1]) ? sma : (smma[1] * (length - 1) + source) / length
+	smma
+
+zlema(series int length, float source) =>
+	ema1 = ta7.ema2(source, length)
+	ema1 + (ema1 - ta7.ema2(ema1, length))
+
+vwma(series int length, series float source = hlc3, simple float volume_default = na) =>
+    var     _sum    = 0.0
+    var     _vol    = 0.0
+    float   _datum  = na
+
+    _volume = volume
+    if na(_volume) and not na(volume_default)
+        _volume := volume_default
+
+    if not na(source) and not na(_volume)
+        _vol     += _volume
+        _datum   := source * _volume
+        _sum     += _datum
+    else
+        _volume := na
+
+    _volume_start   =   _volume[length]
+    _datum_start    =   _datum[length]
+    if not na(_volume_start)
+        _vol -= _volume_start
+    if not na(_datum_start)
+        _sum -= _datum_start
+
+    _vol == 0 ? na : _sum / _vol
+
+cma(series int length, series float source = close, simple float C = 1, simple bool compound = false) =>
+    var float   result      = na
+    float       sum         = 0.0
+    float       weight      = 1.0
+    float       weightTotal = 0.0
+
+    for m = 1 to length
+        s = source[length - m]
+        if not na(s)
+            sum := sum + s * weight
+            weightTotal += weight
+            if compound
+                weight *= 1 + C
+            else
+                weight += C
+
+    prev = result[length]
+    if na(prev)
+        result := sum / weightTotal
+    else
+        result := (prev + sum) / (weightTotal + 1)
+
+ema(series int length, series float source = close) =>
+    var float alpha = 2 / (length + 1)
+    var float a1 = 1 - alpha
+    var float s = na
+    var float ema = na
+    if not na(source)
+        s := source
+    ema := alpha * s + a1 * nz(ema)
+
+wma(series int length, series float source = close, simple int startingWeight = 1) =>
+    float   sum = 0.0
+    float   total = 0
+    int     last = length - 1
+    for i = 0 to last
+        s = source[i]
+        if not na(s)
+            m = last - i + startingWeight
+            total += m
+            sum += s * m
+    total == 0 ? na : sum / total
+
+vawma(series int length, series float source = hlc3, simple float volumeDefault = na, simple int startingWeight = 1) =>
+    float   sum = 0.0
+    float   vol = 0.0
+    int     last = length - 1
+    for i = 0 to last
+        s = source[i]
+        v = volume[i]
+        if na(v) and not na(volumeDefault)
+            v := volumeDefault
+        if not na(s) and not na(v)
+            m = last - i + startingWeight
+            v *= m
+            vol += v
+            sum += s * v
+    vol == 0 ? na : sum / vol
+
+ma(series string ma, series int length, series float source = na) =>
+    switch ma
+        "smma"  =>  smma(   length, na(source) ? close  : source)
+        "zlema" =>  zlema(  length, na(source) ? hlc3   : source)
+        "WMA"   =>  wma(    length, na(source) ? close  : source)
+        "EMA"   =>  ema(    length, na(source) ? close  : source)
+        "VWMA"  =>  vwma(   length, na(source) ? hlc3   : source)
+        "VAWMA" =>  vawma(  length, na(source) ? hlc3   : source)
+        "CMA"   =>  cma(    length, na(source) ? close  : source)
+        "SMA"   =>  ta.sma(na(source) ? close  : source, length)
+        =>          ta.sma(na(source) ? close  : source, length)
+
+stdev(series float source, series int length, simple bool useWma = false, simple int smoothing = 0) =>
+    prev = source[1]
+    mean = useWma ? wma(length, prev) : ta.sma(prev, length)
+    diff = prev - mean
+    diff2 = diff * diff
+    variance = useWma ? wma(length, diff2) : ta.sma(diff2, length)
+    stdev = math.sqrt(variance)
+    if smoothing > 0
+        mean    := ta.sma(mean, smoothing + 1)
+        stdev   := ta.sma(stdev, smoothing + 1)
+    [mean, stdev]
+
+outliners(series float source, series int length, series float maxDeviation = 4, simple bool useWma = false, simple int smoothing = 0) =>
+    [mean, stdev] = stdev(source, length, useWma, smoothing)
+    dev = stdev * maxDeviation
+    source > mean + dev or source < mean - dev ? na : source
+
+atr(series string ma, series int length, series float maxDeviation) =>
+    _outliners  =   outliners(ta.tr, length, maxDeviation)
+    trCleaned   =   maxDeviation == 0 ? ta.tr : _outliners
+    ma(ma, length, trCleaned)
+
+//  ====================================================================================================================================================
 //      Common methods
 //  ====================================================================================================================================================
 
@@ -1361,16 +1493,6 @@ use_session(Contexts contexts) =>
 //      Improved MACD support
 //  ====================================================================================================================================================
 
-smma(float source, int length) =>
-	float smma = 0
-	sma = ta.sma(source, length)
-	smma:= na(smma[1]) ? sma : (smma[1] * (length - 1) + source) / length
-	smma
-
-zlema(float source, int length) =>
-	ema1 = ta7.ema2(source, length)
-	ema1 + (ema1 - ta7.ema2(ema1, length))
-
 use_macd2(Contexts contexts) =>
 	var Context     _context		=	context_create("macd2")
 	var int			_length			=	contexts_get_int(		contexts, "ctx", "macd2.length",	34)
@@ -1379,9 +1501,9 @@ use_macd2(Contexts contexts) =>
 	var float		_dmz_factor		=	contexts_get_float(		contexts, "ctx", "macd2.dmz",		6.6)
 	var float		_flat_factor	=	contexts_get_float(		contexts, "ctx", "macd2.flat",		0.1)
 
-	_high 		= smma(		high, 	_length)
-	_low		= smma(		low,	_length)
-	_middle		= zlema(	hlc3,	_length)
+	_high 		= smma(		_length,    high)
+	_low		= smma(		_length,    low)
+	_middle		= zlema(	_length,    hlc3)
 
 	_macd 		= (_middle > _high) ? (_middle - _high) : (_middle < _low) ? (_middle - _low) : 0
 	_signal 	= ta.sma(_macd, _signal_length)
@@ -1516,6 +1638,81 @@ use_super_trend(Contexts contexts) =>
 	context_set(_context, "down",				_fast_trend > 0 and _slow_trend > 0)
 
 	use_context(contexts, _context)
+
+//  ====================================================================================================================================================
+//      Improved SuperTrend support
+//          Source:
+//          https://www.tradingview.com/script/smXJk7s5-SuperTrend/
+//  ====================================================================================================================================================
+
+type SuperTrend
+    int     trend
+    float   up
+    float   down
+    int     hits
+    bool    warning
+    bool    reversal
+
+_super_trend_2(series float multiple, series float highs, series float lows, series float atr, series int closed_bars = 0) =>
+    _up     =   lows    -   (multiple   *   atr)
+    _up1    =   nz(_up[1], _up)
+    _up     :=  lows[1] > _up1 ? math.max(_up, _up1) : _up
+
+    _down   =   highs   +   (multiple   *   atr)
+    _down1  =   nz(_down[1], _down)
+    _down   :=  highs[1] < _down1 ? math.min(_down, _down1) : _down
+
+    var _last_up        = _up1
+    var _last_down      = _down1
+    var _trend          = 0
+    var _confirmation   = 0
+    var _unconfirmed    = 0
+
+    if(_trend != +1 and lows > _last_down)
+        _trend := +1
+
+    else if(_trend != -1 and highs < _last_up)
+        _trend := -1
+
+    else if(_trend != +1 and highs > _last_down)
+        _unconfirmed += 1
+        if(_confirmation < closed_bars and close[1] > _last_down)
+            _confirmation += 1
+        if(_confirmation >= closed_bars)
+            _trend := +1
+
+    else if(_trend != -1 and lows < _last_up)
+        _unconfirmed += 1
+        if(_confirmation < closed_bars and close[1] < _last_up)
+            _confirmation += 1
+        if(_confirmation >= closed_bars)
+            _trend := -1
+
+    if(_trend[1] != _trend)
+        _last_up        := _up1
+        _last_down      := _down1
+        _confirmation   := 0
+        _unconfirmed    := 0
+    else
+        _last_up    := _trend ==+1 ? math.max(_last_up,     _up1)   : _up1
+        _last_down  := _trend ==-1 ? math.min(_last_down,   _down1) : _down1
+        if(_trend==+1 and _down1 > _down1[1] or _trend == -1 and _up1 < _up1[1])
+            _confirmation   := 0
+            _unconfirmed    := 0
+
+    SuperTrend.new(_trend, _last_up, _last_down, _unconfirmed, _unconfirmed[1] == 0 and _unconfirmed > 0, _trend != _trend[1])
+
+_super_trend_2(series float multiple, series int length, simple string mode = "WMA", series int closeBars = 0, series float maxDeviation = 0) =>
+    _super_trend_2(multiple, high, low, atr(mode, length, maxDeviation), closeBars)
+
+use_super_trend2(Contexts contexts) =>
+    var Context	_context	    =	context_create("super-trend2")
+    float       _i_multiplier   =   3.0
+    int         _i_length       =   120
+    int         _i_closed_bars  =   2
+    SuperTrend  _trend    = _super_trend_2(_i_multiplier, _i_length, "VAWMA", _i_closed_bars, 0)
+
+    use_context(contexts, _context)
 
 //  ====================================================================================================================================================
 //      Volume analytics

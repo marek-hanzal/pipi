@@ -1,0 +1,45 @@
+//	Source
+//	https://www.youtube.com/watch?v=CuWzDo72-Rk
+
+init
+	long		true
+	short		true
+	set
+		string	$ctx.session.time				0900-2300
+		bool	$ctx.session.exclusive			true
+
+		float	$ctx.cci.length					7
+
+		float	$ctx.ema.length-1				8
+		float	$ctx.ema.length-2				20
+
+		float	$ctx.super-trend.fast-length	10
+		float	$ctx.super-trend.slow-length	21
+	;
+;
+
+pattern
+	!strict
+	name		Short: CCI + EMA
+	candle
+		bool	$ema.1.under.2
+	;
+	candle
+		break
+		bool	$ema.1.over.2
+	;
+	candle
+		bool	$candle.ema.1.wicks-over
+		bool	$candle.ema.2.wicks-over
+		bool	$cci.above
+	;
+	candle
+		bool	$candle.bear-engulfing
+	;
+	action
+		profit	$candle.bottom		-	5
+		loss	$day.level.high		+	$day.size(0.35)
+		size	2
+		short
+	;
+;

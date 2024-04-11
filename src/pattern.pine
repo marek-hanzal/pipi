@@ -1,0 +1,139 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © marekhanzal
+
+//@version=5
+
+// @description This library contains tool for matching candlestick patterns
+library("PiPi2_Pattern", overlay = true)
+
+//  ====================================================================================================================================================
+//      Dependencies
+//  ====================================================================================================================================================
+
+import marekhanzal/PiPi2_Context/4	as ctx
+import marekhanzal/PiPi2_Level/2	as lvl
+
+//  ====================================================================================================================================================
+//      Types
+//  ====================================================================================================================================================
+
+//	@type				Candle rule to match exactly one value/state/whatever
+//	@field	target		Name/flag/value
+//	@field	left		Where to get left side of the check; may be 1 (single value) or 2 (context access) pieces
+//	@field	operator	What to say...
+//	@field	right		Where to get right side of the check; may be 1 (single value) or 2 (context access) pieces
+export type Rule
+	string		target
+	string[]	left
+	string		operator
+	string[]	right
+
+//	@type				Rules on a single Candle
+//  @field  stop        True - when rules of this candle are true, this candle breaks pattern matching
+//	@field	rule		Rules to check
+export type Candle
+    bool		stop
+	Rule[]		rule
+
+//	---		Factory methods
+
+export rule_create(string target, string[] left, string operator, string[] right)	=>	Rule.new(target, left, operator, right)
+export candle_create()																=>  Candle.new(false, array.new<Rule>())
+
+//  ====================================================================================================================================================
+//      Pattern matching
+//  ====================================================================================================================================================
+
+export match(ctx.Contexts contexts, Rule rule) =>
+	switch rule.target
+		"bool"	=>
+			_left	=	ctx.contexts_get_bool(contexts, rule.left)
+			_right	=	ctx.contexts_get_bool(contexts, rule.right)
+
+			_left	==	_right
+
+		"float"	=>
+			_left	=	ctx.contexts_get_float(contexts,    rule.left)
+			_right	=	ctx.contexts_get_float(contexts,    rule.right)
+
+            // log.info("Rule broken [{0}] [{1} ({2})] [{3}] [{4} ({5})]", rule.target, rule.key, _left, rule.operator, rule.value, _right)
+
+            switch rule.operator
+				">"		=> _left >	_right
+				">="	=> _left >= _right
+				"<"		=> _left <	_right
+				"<="	=> _left <=	_right
+				"=="	=> _left ==	_right
+				"!="	=> _left !=	_right
+
+		=> true
+
+export match(ctx.Contexts contexts, Candle candle) =>
+	bool _result = true
+
+	for __rule in candle.rule
+        _match  =  match(contexts, __rule)
+
+        if candle.stop
+            if _match
+                _result:=   false
+                break
+            continue
+
+		if not _match
+			_result:= false
+			break
+
+	_result
+
+//	@function	This is strict pattern matching, meaning all matched candles must be in the row without interrputing
+export match_strict(Candle[] match, array<ctx.Contexts> candles) =>
+	bool	_result			=	false
+	int		_rules_size		=	match.size()
+	int		_candles_size	=	candles.size()
+
+	//	If there are more rules than candles, there could be no match
+	if _rules_size <= _candles_size
+		_rule = 0
+		//	Let's rock through latest candles in the length of matching rules
+		for i = _candles_size - _rules_size to _candles_size - 1
+			// Check if a pattern matches; if not, break and return false
+			_result	:=	match(candles.get(i), match.get(_rule))
+			_rule 	+=	1
+			if not _result
+				break
+
+	_result
+
+//	@function	Non-strict pattern matching searches for patterns continually; that means it could match during candles, not necessarily in the row
+match_non_strict(Candle[] match, array<ctx.Contexts> candles) =>
+	bool	_result			=	false
+	int		_rules_size		=	match.size()
+	int		_candles_size	=	candles.size()
+
+	//	If there are more rules than candles, there could be no match
+	if _rules_size <= _candles_size
+		_rule = 0
+
+		//	Run through all candles, searching for the pattern
+		for __context in candles
+			//	This is a trick:
+			//		-	We've buffer of candles
+			//		-	When we're out of rules (meaning all are matched), but there are still candles remaning...
+			//			...it's necessary to start checking again to ensure the pattern is true on the last checked candle
+			if _rule >= match.size()
+				_rule:=		0
+
+			//	Move to the next rule, if candle matches it's rules; without it we're still searching for matching candle
+			if match(__context, match.get(_rule))
+				_rule+=		1
+
+		//	For success, we must have all rules matched, meaning matched count should be same as the number of tested candles
+		_result:=	_rule	==	match.size()
+
+	_result
+
+//  ---     Script: Pattern Matching
+//          This method is responsible for candle pattern matching from the script
+
+export match(Candle[] match, array<ctx.Contexts> candles, bool strict) =>	strict ? match_strict(match, candles) : match_non_strict(match, candles)

@@ -1,0 +1,262 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © marekhanzal
+
+//@version=5
+
+// @description PiPi Context for PiPi Trading System
+library("PiPi2_Context", overlay = true)
+
+//  ====================================================================================================================================================
+//      Dependencies
+//  ====================================================================================================================================================
+
+import marekhanzal/PiPi2_Level/2	as	level
+
+//  ====================================================================================================================================================
+//      Types
+//  ====================================================================================================================================================
+
+//	@type			Value represents PineScript's type accessible from PiPi Script; usually only one value should be set
+//	@field	name	Represents any string value
+//	@field	flag	Represents true/false state, for example uptrend, crossings or whatever
+//	@field	value	Could be any static or computed value, for example day's price range
+//	@field	level	Represents a level; could be a single number or (usually) a range
+export type Value
+	string		_string
+	bool	    _bool
+	float		_float
+	level.Level	_level
+
+//	@type			Mutator is used to change values of the Context using another const value or value from other Context
+//	@field	target	Name/value/flag
+//	@field	key		Exactly 3 pieces: [state/bar], [context name], [value name]
+//	@field	value	Exactly 1 piece: [value itself] or exactly 3 pieces [state/bar], [context name], [value name]
+export type Mutator
+	string				target
+	string[]			key
+	string[]			value
+
+//	@type				Holds simple math equation
+//	@field	left		West side
+//	@field	operator	What to do
+//	@field	righ		East side
+export type Math
+	string[]			left
+	string				operator
+	string[]			right
+
+//	@type			Most important piece of this indicator - there are providers of a context, each managing it's internal state; Context is also used as a communication interface between providers and PiPi Script
+//	@field	name	Name of a context, referenced from PiPi Script and providers
+//	@field	value	Holds all the variables accessible from the PiPi script
+export type Context
+	string					name
+	map<string, Value>		value
+
+//	@type			Just simple wrapper, so we can add contexts to an array
+export type Contexts
+	map<string, Context>	map
+
+//  ---     Value Factory methods
+
+export value_create(string _string)				=>	Value.new(_string, na, na, na)
+export value_create(bool _bool)					=>	Value.new(na, _bool, na, na)
+export value_create(float _float)				=>	Value.new(na, na, _float, na)
+export value_create(level.Level _level)			=>	Value.new(na, na, na, _level)
+
+//			Value utility methods
+
+//	@function	If "value" is "na", return "default"; just shorthand for a bit better readability
+export value_na(Value value, Value default)		=>	na(value) ? default : value
+export value_copy(Value value)					=>	na(value._level) ? value.copy() : value_create(value._level.copy())
+
+//	---		Math factory methods
+
+export math_create(string[] left)									=>	Math.new(left, na, array.new<string>())
+export math_create(string[] left, string operator, string[] right)	=>	Math.new(left, operator, right)
+
+//  ---     Context Factory methods
+
+export context_create(string name)     =>  Context.new(name, map.new<string, Value>())
+export contexts_create()               =>  Contexts.new(map.new<string, Context>())
+
+//  ====================================================================================================================================================
+//      Context methods
+//  ====================================================================================================================================================
+
+//  ---     Context - Utilities
+
+export use_context(Contexts contexts, Context context)	=>
+	contexts.map.put(context.name, context)
+	context
+
+export context(Context context, Context default)	=>	na(context) ? default : context
+
+export contexts_context(Contexts contexts, string context) =>
+	_context = contexts.map.contains(context) ? contexts.map.get(context) : context_create(context)
+	contexts.map.put(context, _context)
+	_context
+
+export context_copy(Context context) =>
+	Context _context = context_create(context.name)
+
+	for [_k, _v] in context.value
+		_context.value.put(_k, value_copy(_v))
+
+	_context
+
+export contexts_copy(Contexts contexts) =>
+	Contexts _contexts = contexts_create()
+
+	for [__name, __context] in contexts.map
+		_contexts.map.put(__name, context_copy(__context))
+
+	_contexts
+
+//  ---     Context - Setters
+
+export context_set(Context context, string name, Value value)		    =>
+	context.value.put(name, value)
+	value
+
+export context_set(Context context, string name, string value)		    =>
+	context_set(context, name, value_create(value))
+	value
+
+export context_set(Context context, string name, bool value)		    =>
+	context_set(context, name, value_create(value))
+	value
+
+export context_set(Context context, string name, float value)		    =>
+	context_set(context, name, value_create(value))
+	value
+
+export context_set(Context context, string name, level.Level value)	=>
+	context_set(context, name, value_create(value))
+
+	context_set(context, name + ".low",		value.low)
+	context_set(context, name + ".high",	value.high)
+	context_set(context, name + ".level",	value.level)
+	context_set(context, name + ".size",	value.size)
+
+	value
+
+export context_set(Context context, level.Level value)				    =>
+	context_set(context, value.name, value)
+
+export context_set(Context context, map<string, level.Level> levels)    =>
+	for [__name, __level] in levels
+		context_set(context, __name, __level)
+
+	levels
+
+//  ---     Contexts - Setters
+
+export contexts_set(Contexts contexts, string context, string name, string			value)	=>	context_set(contexts_context(contexts, context), name, value)
+export contexts_set(Contexts contexts, string context, string name, float			value)	=>	context_set(contexts_context(contexts, context), name, value)
+export contexts_set(Contexts contexts, string context, string name, bool			value)	=>	context_set(contexts_context(contexts, context), name, value)
+export contexts_set(Contexts contexts, string context, string name, level.Level	value)	=>	context_set(contexts_context(contexts, context), name, value)
+
+//  ---     Context - Getters
+
+//  Common getters
+
+export context_get			(Context context, string name, Value	default)		=>
+	if not context.value.contains(name)
+		log.warning("unknown value [{0}.{1}]", context.name, name)
+
+	value_na(context.value.get(name), default)
+
+export context_get_string  (Context context, string name, string 		default	= na)		=>	context_get(	context, name,		value_create(default))._string
+export context_get_bool    (Context context, string name, bool			default	= na)		=>	context_get(	context, name,		value_create(default))._bool
+export context_get_float	(Context context, string name, float		default	= na)		=>	context_get(	context, name,		value_create(default))._float
+export context_get_int		(Context context, string name, int			default	= na)		=>	int(context_get(context, name,		value_create(default))._float)
+export context_get_level	(Context context, string name, level.Level	default	= na)	    =>	context_get(	context, name,		value_create(default))._level
+
+//  Contexts getters
+
+export contexts_get_string	(Contexts contexts, string context, string name, string			default	= na)	=>	context_get_string( context(contexts.map.get(context),	context_create(context)), name, default)
+export contexts_get_bool	(Contexts contexts, string context, string name, bool			default	= na)	=>	context_get_bool(   context(contexts.map.get(context),	context_create(context)), name, default)
+export contexts_get_float	(Contexts contexts, string context, string name, float			default	= na)	=>	context_get_float(  context(contexts.map.get(context),	context_create(context)), name, default)
+export contexts_get_int	(Contexts contexts, string context, string name, int 			default	= na)	=>	context_get_int(    context(contexts.map.get(context),	context_create(context)), name, default)
+export contexts_get_level	(Contexts contexts, string context, string name, level.Level	default	= na)	=>	context_get_level(  context(contexts.map.get(context),	context_create(context)), name, default)
+
+//  Context access getters
+
+export contexts_get_string(Contexts contexts, string[] value) =>
+	switch value.size()
+		1 =>	value.get(0)
+		2 =>	contexts_get_string(contexts, value.get(0), value.get(1))
+
+export contexts_get_bool(Contexts contexts, string[] value) =>
+	switch value.size()
+		1 =>
+			switch value.get(0)
+				"true"	=> true
+				"false"	=> false
+				=> na
+
+		2 => contexts_get_bool(contexts, value.get(0), value.get(1))
+
+export contexts_get_float(Contexts contexts, string[] value) =>
+	switch value.size()
+		1 =>	str.tonumber(value.get(0))
+		2 =>	contexts_get_float(contexts, value.get(0), value.get(1))
+		3 =>	contexts_get_float(contexts, value.get(0), value.get(1)) * str.tonumber(value.get(2))
+
+//  ---     Update contexts from SetValues
+//          This method could be called manually, but it's primary usecase is setting values
+//          from SetValue produced by PiPi Script
+
+export contexts_mutate(Contexts contexts, Mutator[] mutator) =>
+	//	Run through all values we're about to set
+	for _mutator in mutator
+		//	Key must have exactly 3 elements: scope, context and value
+		if _mutator.key.size() != 2
+			continue
+
+		//	Resolve type we're setting; this code looks ugly (and I don't like it), but PineScript's type
+		//	system does not allow any shortcuts here.
+		//
+		//	In short: same methods, but different types.
+		//
+		//	When value resolver returns "na", it's ignored as an unknown value
+		switch _mutator.target
+            "string" =>
+				_value = contexts_get_string(contexts, _mutator.value)
+
+				if not na(_value)
+					contexts_set(contexts, _mutator.key.get(0), _mutator.key.get(1), _value)
+
+			"bool" =>
+				_value = contexts_get_bool(contexts, _mutator.value)
+
+				if not na(_value)
+					contexts_set(contexts, _mutator.key.get(0), _mutator.key.get(1), _value)
+
+			"float" =>
+				_value = contexts_get_float(contexts, _mutator.value)
+
+				if not na(_value)
+					contexts_set(contexts, _mutator.key.get(0), _mutator.key.get(1), _value)
+
+	true
+
+//	@function	Simple math support on the contexts
+export contexts_math(Contexts contexts, Math value) =>
+	_left	=	contexts_get_float(contexts,    value.left)
+	_right	=	contexts_get_float(contexts,    value.right)
+
+	if na(_right)
+		_left
+	else
+		switch value.operator
+			"+" => _left + _right
+			"-" => _left - _right
+			"*" => _left * _right
+			"/" => _left / _right
+			=> na
+
+//  ---     Context Counter support
+
+export context_counter(Context context, string name, float value)						=>	context_set(context, name, na(value) ? 0 : context_get_float(context, name, 0) + value)
+export contexts_counter(Contexts contexts, string context, string name, float value)	=>	context_counter(context(contexts.map.get(context), context_create(name)), name, value)

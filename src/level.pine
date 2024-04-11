@@ -1,0 +1,113 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © marekhanzal
+
+//@version=5
+
+// @description Level (high/low + size) is toolbox library for PiPi Trading System
+library("PiPi2_Level", overlay = true)
+
+//  ====================================================================================================================================================
+//      Types
+//  ====================================================================================================================================================
+
+//	@type			This is a level; because trading is not about exact numbers, Level is represented by a range (low and high); for a single line both can be the same value
+//	@field	name	Level name used to programatically identify it's kind
+//	@field	low		Level low value; for single value levels, both should be same
+//	@field	high	Level high value; for single value levels, both should be same
+//	@field	level	Level middle value
+//	@field	size	Absolute diff between low and high
+export type Level
+	string	name
+	float	low
+	float	high
+	float	level
+	float	size
+
+//	---		Factory methods
+
+//	@function			Default level factory with low/high; level (middle) and size (high - low) is computed automatically
+//	@param		name	Level name
+//	@param		low		Low value (level size and middle is based on both low and high)
+//	@param		high	High value (level size and middle is based on both low and high)
+export create(string name, float low, float high)		=>	Level.new(name, low, high, (high - low) / 2, math.abs(high - low))
+
+//	@function	Creates "na" level
+export create()											=>  Level.new(na, na, na, na, na)
+
+//	@function			Creates	level based on value and low/high based on the factor
+//	@param		name	Level name
+//	@param		level	Value
+//	@param		size	Level size: low = level - size; high = level + size
+export size(string name, float level, float size)	=>	Level.new(name, level - size, level + size, level, size * 2)
+
+//  ====================================================================================================================================================
+//      Mutations
+//  ====================================================================================================================================================
+
+//	@function	Sets new level low; also updates "level" and "size"
+export low(Level level, float low) =>
+	if not na(level)
+		level.low	:=	low
+		level.level	:=	(level.high + level.low) / 2
+		level.size	:=	math.abs(level.low - level.high)
+
+//	@function	Sets new level high; also updates "level" and "size"
+export high(Level level, float high) =>
+	if not na(level)
+		level.high	:=	high
+		level.level	:=	(level.high + level.low) / 2
+		level.size	:=	math.abs(level.low - level.high)
+
+//	@function	Set both low and high and updates "level" and "size"
+export low_high(Level level, float low, float high) =>
+	low(level, low)
+	high(level, high)
+
+//	@function	Push new level into levels map using "level" and "size"
+export push_size(map<string, Level> levels, string name, float level, float size) =>
+    levels.put(name, size(name, level, size))
+
+//  ====================================================================================================================================================
+//      Tools
+//  ====================================================================================================================================================
+
+//	@function	Checks if the given value is inside a level
+export inside(Level level, float value) =>	value >= level.low and value <= level.high
+
+//  ====================================================================================================================================================
+//      Rendering
+//  ====================================================================================================================================================
+
+//	@function			Simple function to render a level
+//	@param		name	Explicit level name used to track rendering of primitives
+//	@param		level	So, you want render a Level?
+//	@param		index	Start index (bar_index)
+//	@param		last	Last index; "na" for extend right
+//	@param		color	Yes, color
+//	@param		simple	Simple mode draws only single line (Levels "level"), otherwise all level lines are rendered (low, high, level)
+export render_zone(string name, Level level, int index, int last, color color, bool simple = true) =>
+	var map<string, line>	_lines = map.new<string, line>()
+	var map<string, box>	_boxes = map.new<string, box>()
+
+	string	_name_low	=	name + ".low"
+	string	_name_level	=	name + ".level"
+	string	_name_high	=	name + ".high"
+	string	_name_box	=	name
+
+	line.delete(_lines.get(_name_high))
+	line.delete(_lines.get(_name_level))
+	line.delete(_lines.get(_name_low))
+
+	box.delete(_boxes.get(_name_box))
+
+	_last	=	na(last) ? index + 1 : last
+	_extend	=	na(last) ? extend.right : extend.none
+
+	_lines.put(_name_level,	line.new(index,	level.level,	_last,	level.level,	style = line.style_solid,	extend = _extend, color = color.new(color, 0), width = 1))
+
+	if not simple
+		_lines.put(_name_low,	line.new(index,	level.low,	_last,	level.low, 		style = line.style_dotted,	extend = _extend, color = color.new(color, 80), width = 1))
+		_lines.put(_name_high,	line.new(index,	level.high,	_last,	level.high,		style = line.style_dotted,	extend = _extend, color = color.new(color, 80), width = 1))
+		_boxes.put(_name_box,	box.new(index, level.high,	_last,	level.low,									extend = _extend, border_color = na, border_width = na, bgcolor = color.new(color, 97.5)))
+
+	true

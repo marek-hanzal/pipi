@@ -1,0 +1,309 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © marekhanzal
+
+//@version=5
+
+// @description This is PiPi Script Parser
+library("PiPi2_Parser", overlay = true)
+
+//  ====================================================================================================================================================
+//      Dependencies
+//  ====================================================================================================================================================
+
+import marekhanzal/PiPi2_Context/4	as	ctx
+import marekhanzal/PiPi2_Pattern/5	as	pattern
+import marekhanzal/PiPi2_Script/7	as	script
+
+//  ====================================================================================================================================================
+//      Individual parsers
+//          If want learn PiPi something new, here are parsers it uses.
+//  ====================================================================================================================================================
+
+//  --- Parse: Key
+//      Resolve key in general: it detects contexts access or (const) value
+
+parse_key(string line) =>
+	string[]	_key = array.from(line)
+
+	if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
+		_context	=	str.substring(line, 1, str.pos(line, "."))
+		_name		=	str.substring(line, str.pos(line, ".") + 1)
+		_key		:=	array.from(_context, _name)
+
+	else if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
+		_context	=	str.substring(line, 1, str.pos(line, "."))
+		_name		=	str.substring(line, str.pos(line, ".") + 1, str.pos(line, "("))
+		_key		:=	array.from(_context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
+
+	_key
+
+//  --- Parse: Init
+//      Gateway for "init" part of the script
+
+parse_init(string[] stack, string line, script.Init init) =>
+	_text	=	str.split(line,	"\t")
+
+	switch _text.get(0)
+		"priority"	=>
+			if _text.size() == 2
+				init.priority:=		int(str.tonumber(_text.get(1)))
+		"long"		=>
+			if _text.size() == 2
+				switch _text.get(1)
+					"true"	=> init.long:=	true
+					"false"	=> init.long:=	false
+					=>	init.long:=	true
+		"short"		=>
+			if _text.size() == 2
+				switch _text.get(1)
+					"true"	=> init.short:=	true
+					"false"	=> init.short:=	false
+					=>	init.short:=	true
+		"set"		=>	stack.push("parse_set")
+
+	init
+
+//  --- Parse: Set
+//      Resolves individual "set" values
+
+parse_set(string line, ctx.Mutator[] mutator) =>
+	string[] _set = str.split(line, "\t")
+	if _set.size() == 3
+		mutator.push(ctx.Mutator.new(_set.get(0), parse_key(_set.get(1)), parse_key(_set.get(2))))
+
+//  --- Parse: Pattern
+//      Pattern section gateway; this parses everything related to "pattern" section
+
+parse_pattern(string[] stack, string line, script.Pattern pattern) =>
+	_text = str.split(line, "\t")
+
+	switch _text.get(0)
+		"name"		=>	pattern.name		:=	_text.size() == 2 ? _text.get(1) : na
+		"strict"	=>	pattern.strict		:=	true
+		"priority"	=>	pattern.priority	:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : 0
+		"length"	=>	pattern.length		:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : pattern.length
+		"!strict"	=>	pattern.strict		:=	false
+		"disabled"	=>	pattern.enabled		:=	false
+		"candle"	=>	stack.push("parse_pattern_candle")
+		"action"	=>	stack.push("parse_action")
+
+	pattern
+
+//  --- Parse: Pattern -> Candle -> Flag
+//      Resolve candle condition for flags (bool values)
+
+parse_pattern_candle_bool(string[] rule, bool flag, pattern.Candle candle) =>
+	_key = parse_key(rule.get(0))
+	if _key.size() == 2
+		candle.rule.push(pattern.rule_create("bool", _key, "=", array.from(flag ? "true" : "false")))
+
+//  --- Parse: Pattern -> Candle -> Value
+//      Resolve candle condition using value comparison
+
+parse_pattern_candle_float(string[] rule, pattern.Candle candle) =>
+	if rule.size() == 3
+		candle.rule.push(pattern.rule_create("float", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
+
+//  --- Parse: Pattern -> Candle
+//      Candle parsing gateway (resolves candle rules and everything related to candle section parsing)
+
+parse_pattern_candle(string line, pattern.Candle candle) =>
+	_rule = str.split(line, "\t")
+
+	switch _rule.get(0)
+        "break"     =>
+            candle.stop:=   true
+		"bool"		=>
+			_rule.shift()
+			parse_pattern_candle_bool(_rule, true, candle)
+
+		"!bool"		=>
+			_rule.shift()
+			parse_pattern_candle_bool(_rule, false, candle)
+
+		"float"		=>
+			_rule.shift()
+			parse_pattern_candle_float(_rule, candle)
+
+	candle
+
+//  --- Parse: Pattern -> Action -> [Profit | Loss]
+//      Resolves action for setting profit/loss
+
+parse_action_profit_loss(string[] source, script.Action action) =>
+	_type = source.shift()
+
+	switch source.size()
+		1 =>
+			_value	=	parse_key(source.get(0))
+			switch _type
+				"profit"	=>	action.profit	:=	ctx.math_create(_value)
+				"loss"		=>	action.loss		:=	ctx.math_create(_value)
+
+		3 =>
+			_left		=	parse_key(source.get(0))
+			_operator	=	source.get(1)
+			_right		=	parse_key(source.get(2))
+			switch _type
+				"profit"	=>	action.profit	:=	ctx.math_create(_left, _operator, _right)
+				"loss"		=>	action.loss		:=	ctx.math_create(_left, _operator, _right)
+
+	action
+
+
+parse_action_mark(string line, script.Mark mark) =>
+    _line   =   str.split(line, "\t")
+
+    switch  _line.get(0)
+        "text"  =>
+            if _line.size() == 2
+                mark.title:=    _line.get(1)
+
+        "color"  =>
+            if _line.size() == 2
+                mark.color:=    _line.get(1)
+
+        "text-color"  =>
+            if _line.size() == 2
+                mark.text_color:=   _line.get(1)
+
+        "hint"  =>
+            if _line.size() == 2
+                mark.hint:=   _line.get(1)
+
+        "position"  =>
+            if _line.size() == 2
+                mark.position:=   _line.get(1)
+
+    mark
+
+//  --- Parse: Pattern -> Action
+//      Gateway for all supported actions in the script
+
+parse_action(string[] stack, string line, script.Action action) =>
+	_action	=	str.split(line, "\t")
+
+	switch _action.get(0)
+		"hint"				=>	action.hint:=	_action.size() == 2 ? _action.get(1) : na
+		"set"				=>	stack.push("parse_set")
+        "mark"				=>	stack.push("parse_action_mark")
+		"profit"			=>	parse_action_profit_loss(_action, action)
+		"loss"				=>	parse_action_profit_loss(_action, action)
+        "size"              =>
+            if _action.size() == 2
+                action.size     :=  parse_key(_action.get(1))
+		"long"				=>	action.order	:=	1
+		"short"				=>	action.order	:=	-1
+		"close"				=>	action.close	:=	true
+
+	action
+
+//  ====================================================================================================================================================
+//      Script Parser
+//  ====================================================================================================================================================
+
+//  --- Main script parser
+//      PiPi Script (parts of script) goes here and parser produces a script, which could be executed
+
+export parse(simple string[] script) =>
+	script.Script		_script		=	script.script_create()
+	ctx.Mutator[]		_mutator	=	na
+	script.Action		_action		=	na
+	script.Pattern		_pattern	=	na
+	pattern.Candle		_candle		=	na
+	string[]			_stack		=	array.new<string>()
+
+	for __source in script
+		_source		=	str.split(str.trim(__source), "\n")
+
+		for _line in _source
+			_text = str.trim(_line)
+
+			if str.startswith(_text, '//') or str.length(_text) == 0
+				continue
+
+			switch _text
+				"init" =>
+					_mutator:=	_script.init.mutator
+					_stack.push("parse_init")
+					continue
+
+				"pattern" =>
+					_pattern	:=	script.pattern_create()
+					_action		:=	_pattern.action
+					_script.pattern.push(_pattern)
+					_stack.push("parse_pattern")
+					continue
+
+				"candle" =>
+					_candle:=	pattern.candle_create()
+					_pattern.candle.push(_candle)
+
+				"action" =>
+					_mutator:=	_pattern.action.mutator
+
+                "mark" =>
+                    _action.mark:=  script.mark_create()
+
+				";"	=>
+					_stack.pop()
+					continue
+
+			if _stack.size() > 0
+				switch _stack.last()
+					"parse_init" =>
+						parse_init(_stack, _text, _script.init)
+
+					"parse_set" =>
+						parse_set(_text, _mutator)
+
+					"parse_pattern" =>
+						parse_pattern(_stack, _text, _pattern)
+
+					"parse_pattern_candle" =>
+						parse_pattern_candle(_text, _candle)
+
+					"parse_action" =>
+						parse_action(_stack, _text, _action)
+
+                    "parse_action_mark" =>
+						parse_action_mark(_text, _action.mark)
+
+	log.info("=== Init")
+
+	for _v in _script.init.mutator
+		log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
+
+	for __pattern in _script.pattern
+		log.info("=== Pattern [{0} - {1}]", na(_pattern.name) ? " - na - " : _pattern.name, __pattern.strict ? "strict" : "non-strict")
+
+		for __candle in __pattern.candle
+			log.info("== Candle [{0}]", __candle.stop ? "Breaker" : "Common")
+			for __rule in __candle.rule
+				log.info("- Rule [{0}] {1} {2} {3}", __rule.target, __rule.left, __rule.operator, __rule.right)
+
+		log.info("== Action")
+		for _v in __pattern.action.mutator
+			log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
+
+		if not na(__pattern.action.profit)
+			log.info("- Profit: {0} [{1}] {2}", __pattern.action.profit.left, __pattern.action.profit.operator, __pattern.action.profit.right)
+
+		if not na(__pattern.action.loss)
+			log.info("- Loss: {0} [{1}] {2}", __pattern.action.loss.left, __pattern.action.loss.operator, __pattern.action.loss.right)
+
+		if __pattern.action.order > 0
+			log.info("-	Long")
+
+		if __pattern.action.order < 0
+			log.info("-	Short")
+
+        if not na(__pattern.action.mark)
+            log.info("Mark [{0}], color [{1}]", __pattern.action.mark.title, __pattern.action.mark.color)
+
+        log.info("-	Position size {0}", __pattern.action.size)
+
+		if __pattern.action.close
+			log.info("-	Close")
+
+	_script

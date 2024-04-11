@@ -1,0 +1,76 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © marekhanzal
+
+//@version=5
+
+// @description PiPi Toolbox contains various tools useful in general
+library("PiPi2_Toolbox", overlay = true)
+
+//  ====================================================================================================================================================
+//      Dependencies
+//  ====================================================================================================================================================
+
+import marekhanzal/PiPi2_Level/2	as lvl
+
+//  ====================================================================================================================================================
+//      Utilities
+//  ====================================================================================================================================================
+
+//  --- Hack used to call block one time only, useful for setting up var arrays/maps which cannot be created in one statement
+
+export use_init() =>
+	var bool	init	= true
+	bool		_init	= init
+	init:=	false
+
+	_init
+
+//  ---		Somehow independent Fibbonachi level computation
+
+export fibbonachi(lvl.Level level, float factor = 0) =>
+	_diff 		= math.abs(level.high - level.low)
+	_base		= level.high
+	_fibb		= map.new<string, lvl.Level>()
+
+	lvl.push_size(_fibb, "0", 		_base - (_diff * 0.000), factor)
+	lvl.push_size(_fibb, "20",		_base - (_diff * 0.236), factor)
+	lvl.push_size(_fibb, "30",		_base - (_diff * 0.382), factor)
+	lvl.push_size(_fibb, "50",		_base - (_diff * 0.500), factor)
+	lvl.push_size(_fibb, "60",		_base - (_diff * 0.618), factor)
+	lvl.push_size(_fibb, "70",		_base - (_diff * 0.786), factor)
+	lvl.push_size(_fibb, "100",		_base - (_diff * 1.000), factor)
+
+	_fibb
+
+//	---		Some string to value utility methods
+
+export color_of(string input) =>
+    switch input
+        "aqua"      => color.aqua
+        "blue"      => color.blue
+        "fuchsia"   => color.fuchsia
+        "green"     => color.green
+        "red"       => color.red
+        "lime"      => color.lime
+        "teal"      => color.teal
+        "maroon"    => color.maroon
+        "navy"      => color.navy
+        "yellow"    => color.yellow
+        "purple"    => color.purple
+        "orange"    => color.orange
+        "olive"     => color.olive
+        "white"     => color.white
+        "black"     => color.black
+        =>  color.blue
+
+export yloc_of(string input) =>
+    switch input
+        "above"    =>   yloc.abovebar
+        "below"    =>   yloc.belowbar
+        =>  yloc.abovebar
+
+export style_yloc_of(string input) =>
+    switch input
+        "above"    =>   label.style_label_down
+        "below"    =>   label.style_label_up
+        =>  label.style_label_down

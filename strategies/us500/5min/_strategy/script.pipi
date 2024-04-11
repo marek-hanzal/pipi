@@ -1,20 +1,22 @@
 init
 	long		true
 	short		true
+	priority	20
 	set
 		string	$ctx.session.time				1100-2300
 		bool	$ctx.session.exclusive			true
+
 		float	$ctx.cci.length					10
 	;
 ;
 
+//	CCI + Six EMAs
+
 pattern
+	priority	20
+	name		Long: CCI + Six EMAs
 	candle
-		float	$ema.1.level		>	$ema.2.level
-		float	$ema.2.level		>	$ema.3.level
-		float	$ema.3.level		>	$ema.4.level
-		float	$ema.4.level		>	$ema.5.level
-		float	$ema.5.level		>	$ema.6.level
+		bool	$ema.1-6
 	;
 	candle
 		bool	$cci.lower
@@ -30,12 +32,10 @@ pattern
 ;
 
 pattern
+	priority	20
+	name		Short: CCI + Six EMAs
 	candle
-		float	$ema.1.level		<	$ema.2.level
-		float	$ema.2.level		<	$ema.3.level
-		float	$ema.3.level		<	$ema.4.level
-		float	$ema.4.level		<	$ema.5.level
-		float	$ema.5.level		<	$ema.6.level
+		bool	$ema.6-1
 	;
 	candle
 		bool	$cci.higher

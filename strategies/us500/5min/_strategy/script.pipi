@@ -2,31 +2,64 @@ init
 	long		true
 	short		true
 	set
-		string	$ctx.session.time				1445-2300
+		string	$ctx.session.time				1100-2300
 		bool	$ctx.session.exclusive			true
-
-		float	$ctx.cci.length					17
-
-		float	$ctx.ema.length-1				10
-		float	$ctx.ema.length-2				50
-		float	$ctx.ema.length-3				100
-
-		float	$ctx.atr-signal.length			20
-		float	$ctx.atr-signal.factor			3
+		float	$ctx.cci.length					14
 	;
 ;
 
 pattern
-	strict
+	pass
 	candle
-		bool	$atr-signal.buy
-		bool	$super-trend.fast.up
-		bool	$ema.1.above.2
 	;
 	action
-		profit	$candle.top			+	15
-		loss	$super-trend.fast.signal
-		size	2
+		set
+			bool	$ctx.ema.green		false
+			bool	$ctx.ema.red		false
+		;
+	;
+;
+
+pattern
+	pass
+	candle
+		float	$ema.1.level		>	$ema.2.level
+		float	$ema.2.level		>	$ema.3.level
+		float	$ema.3.level		>	$ema.4.level
+		float	$ema.4.level		>	$ema.5.level
+		float	$ema.5.level		>	$ema.6.level
+	;
+	candle
+		bool	$cci.lower
+	;
+	candle
+		bool	$cci.higher
+	;
+	action
+		profit	$candle.top		+	4
+		loss	$ema.6.level	-	1.75
 		long
+	;
+;
+
+pattern
+	pass
+	candle
+		float	$ema.1.level		<	$ema.2.level
+		float	$ema.2.level		<	$ema.3.level
+		float	$ema.3.level		<	$ema.4.level
+		float	$ema.4.level		<	$ema.5.level
+		float	$ema.5.level		<	$ema.6.level
+	;
+	candle
+		bool	$cci.higher
+	;
+	candle
+		bool	$cci.lower
+	;
+	action
+		profit	$candle.bottom	-	4
+		loss	$ema.6.level	+	1.5
+		short
 	;
 ;

@@ -4,7 +4,7 @@ init
 	set
 		string	$ctx.session.time				1100-2300
 		bool	$ctx.session.exclusive			true
-		float	$ctx.cci.length					14
+		float	$ctx.cci.length					10
 	;
 ;
 
@@ -36,8 +36,8 @@ pattern
 		bool	$cci.higher
 	;
 	action
-		profit	$candle.top		+	4
-		loss	$ema.6.level	-	1.75
+		profit	$candle.high	+	20
+		loss	$candle.low		-	6
 		long
 	;
 ;
@@ -58,8 +58,8 @@ pattern
 		bool	$cci.lower
 	;
 	action
-		profit	$candle.bottom	-	4
-		loss	$ema.6.level	+	1.75
+		profit	$candle.low		-	20
+		loss	$candle.high	+	6
 		short
 	;
 ;

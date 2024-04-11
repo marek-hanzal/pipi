@@ -59,7 +59,7 @@ pattern
 	;
 	action
 		profit	$candle.bottom	-	4
-		loss	$ema.6.level	+	1.5
+		loss	$ema.6.level	+	1.75
 		short
 	;
 ;

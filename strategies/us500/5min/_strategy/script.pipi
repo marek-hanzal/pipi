@@ -9,19 +9,6 @@ init
 ;
 
 pattern
-	pass
-	candle
-	;
-	action
-		set
-			bool	$ctx.ema.green		false
-			bool	$ctx.ema.red		false
-		;
-	;
-;
-
-pattern
-	pass
 	candle
 		float	$ema.1.level		>	$ema.2.level
 		float	$ema.2.level		>	$ema.3.level
@@ -37,13 +24,12 @@ pattern
 	;
 	action
 		profit	$candle.high	+	20
-		loss	$candle.low		-	6
+		loss	$candle.low		-	5
 		long
 	;
 ;
 
 pattern
-	pass
 	candle
 		float	$ema.1.level		<	$ema.2.level
 		float	$ema.2.level		<	$ema.3.level
@@ -59,7 +45,7 @@ pattern
 	;
 	action
 		profit	$candle.low		-	20
-		loss	$candle.high	+	6
+		loss	$candle.high	+	5
 		short
 	;
 ;

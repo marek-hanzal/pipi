@@ -11,12 +11,18 @@ This is a default super trend indicator you already know, just doubled.
 *   `$ctx.super-trend.slow-factor`  - factor of slow super trend
 
 **Flags**:
+*	`$super-trend.fast.flat`    - fast super trend is flat (compared to previous bar)
+*	`$super-trend.fast.rise`    - fast super trend rise (compared to previous bar)
+*	`$super-trend.fast.fall`    - fast super trend fall (compared to previous bar)
 *	`$super-trend.fast.up`    - fast super trend is up
 *   `$super-trend.fast.up.start`  - fast supertrend just started
 *   `$super-trend.fast.up.end`  - fast supertrend just ended
 *   `$super-trend.fast.down`  - fast super trend is down
 *   `$super-trend.fast.down.start`  - fast supertrend just started
 *   `$super-trend.fast.down.end`  - fast supertrend just ended
+*	`$super-trend.slow.flat`    - slow super trend is flat (compared to previous bar)
+*	`$super-trend.slow.rise`    - slow super trend rise (compared to previous bar)
+*	`$super-trend.slow.fall`    - slow super trend fall (compared to previous bar)
 *	`$super-trend.slow.up`    - slow super trend is up
 *   `$super-trend.slow.up.start`  - slow supertrend just started
 *   `$super-trend.slow.up.end`  - slow supertrend just ended

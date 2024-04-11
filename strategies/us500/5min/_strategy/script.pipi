@@ -20,10 +20,12 @@ pattern
 	strict
 	candle
 		bool	$atr-signal.buy
+		bool	$super-trend.fast.up
+		bool	$ema.1.above.2
 	;
 	action
-		profit	$candle.top			+	7
-		loss	$candle.bottom		-	4
+		profit	$candle.top			+	15
+		loss	$super-trend.fast.signal
 		size	2
 		long
 	;

@@ -11,10 +11,10 @@ strategy("PiPi v0.6.0", overlay = true, default_qty_value = 2, currency = curren
 import marekhanzal/PiPi2_Context/4  as  ctx
 import marekhanzal/PiPi2_Pattern/5  as  pattern
 import marekhanzal/PiPi2_Level/2    as  lvl
-import marekhanzal/PiPi2_Parser/7   as  parser
+import marekhanzal/PiPi2_Parser/8   as  parser
 import marekhanzal/PiPi2_Toolbox/2  as  toolbox
-import marekhanzal/PiPi2_Script/7	as  script
-import marekhanzal/PiPi2_Source/10	as  source
+import marekhanzal/PiPi2_Script/8	as  script
+import marekhanzal/PiPi2_Source/11	as  source
 
 //  ====================================================================================================================================================
 //      Inputs
@@ -86,6 +86,7 @@ main(string[] script) =>
 	source.use_structure			(_contexts)
 	source.use_structure_fibbonachi	(_contexts)
 	source.use_super_trend			(_contexts)
+	source.use_atr_signal			(_contexts)
 	//	Candle levels "must" be last, because providers may export levels which candle handles (computes flags against those levels)
 	source.use_candle_levels    	(_contexts)
 

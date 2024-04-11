@@ -154,7 +154,7 @@ eval_trade(ctx.Contexts contexts, Init init, Pattern pattern) =>
 			if _entry
 				ctx.contexts_set(contexts,	"trade", "entry",	true)
 
-                ctx.contexts_set(contexts,	"ctx",  "buy",     _action.order > 0)
+                ctx.contexts_set(contexts,	"ctx",  "buy",      _action.order > 0)
 				ctx.contexts_set(contexts,	"ctx",  "sell",     _action.order < 0)
 
 				ctx.contexts_set(contexts,	"trade", "long",	_action.order > 0)
@@ -256,6 +256,11 @@ eval_action(ctx.Contexts contexts, Init init, Pattern pattern) =>
 //	@param		contexts	Current contexts from all provides script may access
 //	@param		script		Script itself; doesn't matter, where it comes from
 export eval(ctx.Contexts contexts, Script script) =>
+	// Reset default states
+	ctx.contexts_set(contexts,	"trade", "entry",	false)
+	ctx.contexts_set(contexts,	"ctx",  "buy",      false)
+	ctx.contexts_set(contexts,	"ctx",  "sell",     false)
+
 	eval_action(contexts, script.init, eval_pattern(contexts, script.init, script.pattern))
 
 	script

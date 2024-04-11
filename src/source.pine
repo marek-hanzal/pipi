@@ -60,6 +60,9 @@ export use_defaults(ctx.Contexts contexts) =>
         ctx.context_set(_context,	"super-trend.slow-length",  20)
         ctx.context_set(_context,	"super-trend.slow-factor",  5)
 
+		ctx.context_set(_context,	"atr-signal.length",		20)
+		ctx.context_set(_context,	"atr-signal.factor",		3)
+
 	//	Reset default global flags
 	ctx.context_set(_context,	"buy",	false)
 	ctx.context_set(_context,	"sell",	false)
@@ -557,7 +560,7 @@ export use_super_trend(ctx.Contexts contexts) =>
 //  ====================================================================================================================================================
 
 export use_atr_signal(ctx.Contexts contexts) =>
-	var ctx.Context	_context		=	ctx.context_create("super-trend")
+	var ctx.Context	_context		=	ctx.context_create("atr-signal")
 	var int			_i_length		=	ctx.contexts_get_int(		contexts, "ctx",	"atr-signal.length",		20)
 	var float		_i_factor		=	ctx.contexts_get_float(		contexts, "ctx",	"atr-signal.factor",		3)
 

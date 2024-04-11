@@ -18,28 +18,6 @@ init
 
 pattern
 	!strict
-	length		3
-
-	candle
-		bool	$candle.green
-	;
-	candle
-		bool	$candle.red
-	;
-	candle
-		bool	$candle.green
-	;
-	action
-		mark
-			text	3 green candles
-			color	green
-		;
-	;
-;
-
-
-pattern
-	!strict
 	name		Short: CCI + EMA
 	candle
 		bool	$ema.1.under.2

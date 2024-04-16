@@ -1,41 +1,10 @@
 init
 	long		true
-	short		true
-	priority	50
+	short		false
+	priority	0
 	set
 		string	$ctx.session.time				1100-2300
 		bool	$ctx.session.exclusive			true
-
-		float	$ctx.cci.length					10
-
-		float	$ctx.super-trend.fast-length	12
-		float	$ctx.super-trend.fast-factor	1
-		float	$ctx.super-trend.slow-length	24
-		float	$ctx.super-trend.slow-factor	5
-	;
-;
-
-
-//	add state counter (how long given rule is active?)
-
-
-pattern
-	priority	50
-	length		6
-	name		Short: Long Reverse
-	candle
-		bool	$candle.green
-		float	$candle.high		>	$day-fibbonachi.0.low
-	;
-	candle
-		bool	$candle.red
-		float	$ema.1.level		<	$ema.3.level
-		float	$candle.low			<	$day-fibbonachi.20.high
-	;
-	action
-		profit	$candle.bottom	-	8
-		loss	$candle.top		+	6
-		short
 	;
 ;
 
@@ -44,25 +13,22 @@ pattern
 pattern
 	priority	20
 	name		Long: CCI + Six EMAs
+	strict
 	candle
-		bool	$ema.1-6
-	;
-	candle
-		bool	$cci.lower
-	;
-	candle
-		bool	$cci.higher
+		bool	$ema.1-6.signal
 	;
 	action
-		profit	$candle.high	+	20
-		loss	$candle.low		-	5
-		long
+		set
+			bool	$ctx.buy	true
+		;
 	;
 ;
 
 pattern
 	priority	20
+	disabled
 	name		Short: CCI + Six EMAs
+	length		6
 	candle
 		bool	$ema.6-1
 	;

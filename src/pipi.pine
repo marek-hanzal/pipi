@@ -443,641 +443,641 @@ contexts_counter(Contexts contexts, string context, string name, float value)	=>
 	//      Types
 	//  ====================================================================================================================================================
 
-//	@type				Candle rule to match exactly one value/state/whatever
-//	@field	target		Name/flag/value
-//	@field	left		Where to get left side of the check; may be 1 (single value) or 2 (context access) pieces
-//	@field	operator	What to say...
-//	@field	right		Where to get right side of the check; may be 1 (single value) or 2 (context access) pieces
-type Rule
-	string		target
-	string[]	left
-	string		operator
-	string[]	right
-
-//	@type				Rules on a single Candle
-//  @field  stop        True - when rules of this candle are true, this candle breaks pattern matching
-//	@field	rule		Rules to check
-type Candle
-    bool		stop
-	Rule[]		rule
-
-	//	---		Factory methods
-
-rule_create(string target, string[] left, string operator, string[] right)	=>	Rule.new(target, left, operator, right)
-candle_create()																=>  Candle.new(false, array.new<Rule>())
-
-	//  ====================================================================================================================================================
-	//      Pattern matching
-	//  ====================================================================================================================================================
-
-match(Contexts contexts, Rule rule) =>
-	switch rule.target
-		"bool"	=>
-			_left	=	contexts_get_bool(contexts, rule.left)
-			_right	=	contexts_get_bool(contexts, rule.right)
-
-			_left	==	_right
-
-		"float"	=>
-			_left	=	contexts_get_float(contexts,    rule.left)
-			_right	=	contexts_get_float(contexts,    rule.right)
-
-            // log.info("Rule broken [{0}] [{1} ({2})] [{3}] [{4} ({5})]", rule.target, rule.key, _left, rule.operator, rule.value, _right)
-
-            switch rule.operator
-				">"		=> _left >	_right
-				">="	=> _left >= _right
-				"<"		=> _left <	_right
-				"<="	=> _left <=	_right
-				"=="	=> _left ==	_right
-				"!="	=> _left !=	_right
-
-		=> true
-
-match(Contexts contexts, Candle candle) =>
-	bool _result = true
-
-	for __rule in candle.rule
-        _match  =  match(contexts, __rule)
-
-        if candle.stop
-            if _match
-                _result:=   false
-                break
-            continue
-
-		if not _match
-			_result:= false
-			break
-
-	_result
-
-//  ====================================================================================================================================================
-//      Library: Script
-//			This part is responsible for a script execution
-//  ====================================================================================================================================================
-
-	//  ====================================================================================================================================================
-	//      Types
-	//  ====================================================================================================================================================
-
-//	@type				Match tracking of the given pattern
-//	@field	strict		Matching mode: strict - consecutive candles must match; non-strict, candles are checked continually
-//	@field	priority	When multiple matches win, one with highest priority will be executed
-//	@field	pattern		Array index of pattern (in script, or whatever is used to store patterns) this match belongs to
-//	@field	rule		Index to current pattern rule
-//	@field	count		Count of successfull matches
-//	@field	length		Current match "runtime" - number of bars check runs
-//	@field	track		Track current state of match; if this one falls "false", pattern matching failed and this Match should reset
-//	@field	match		Match status; if true, pattern's action should be executed + this state reset
-type Match
-	bool	strict
-	float	priority
-	int		pattern
-	int		rule
-	int		count
-	int		length
-	bool	track
-	bool	match
-
-//  @type               Action can create a mark (label)
-//  @field  title       Text to display
-//  @field  color       Mark color
-type Mark
-    string              title
-    string              hint
-    string              color
-    string              text_color
-    string              position
-
-//	@type				When a pattern matches, execute an action
-//	@field	mutator	Set values
-//	@field	profit		Set profit (does not execute a trade)
-//	@field	loss		Set loss (does not execute a trade)
-//	@field	order		> 0, long, < 0 short, everything else - nothing
-//  @field  mark        Action may display mark (label)
-type Action
-	string				hint
-	Mutator[]			mutator
-	Math				profit
-	Math				loss
-    string[]            size
-	int					order
-	bool				close
-    Mark                mark
-
-//	@type				Pattern used to match multiple candles
-//	@field	priority	Higher pattern priority wins, when there are multiple winning Patterns
-//	@field	strict		Strict means all candles must be next to each other; non-strict - pattern is checked on the fly, last matching candle commits true
-//	@field	length		When non-strict pattern is enabled, length defines how many bars to wait to finish a pattern before pattern is considered broken
-//	@field	enabled		Feature for the user to enable/disable pattern when trying different appraches
-//	@field	pass		If true, pattern will not break, thus continuing to the next matching pattern in a row
-//	@field	candle		Array of candle rules
-//	@field	action		Action being taken when pattern is matched
-type Pattern
-	string				name
-	int					priority
-	bool				strict
-	int					length
-	bool				enabled
-	bool				pass
-	Candle[]			candle
-	Action				action
-
-//	@type				Startup part of the script
-//	@field	set_value	Those values will be set into the context(s)
-type Init
-	int					priority
-	bool				long
-	bool				short
-	Mutator[]			mutator
-
-//	@type				All the candle matching stuff
-//	@field	init		Startup part of script; should be called *exactly* once
-//	@field	pattern		Patterns used to match candles
-type Script
-	Init				init
-	Pattern[]			pattern
-
-	//	---		Factory methods
-
-match_create(bool strict, float priority, int pattern)		=>	Match.new(strict, priority, pattern, 0, 0, 0, false, na)
-mark_create()												=>  Mark.new(na, na, "blue", "white", "above")
-action_create()												=>  Action.new(na, array.new<Mutator>(), na, na, array.from("2"), 0, false, na)
-pattern_create()											=>  Pattern.new(na, 0, false, 10, true, false, array.new<Candle>(), action_create())
-init_create()												=>  Init.new(0, true, true, array.new<Mutator>())
-script_create()												=>  Script.new(init_create(), array.new<Pattern>())
-
-	//  ====================================================================================================================================================
-	//      Utils
-	//  ====================================================================================================================================================
-
-match_reset(Match match)	=>
-	match.rule:=	0
-	match.count:=	0
-	match.length:=	0
-	match.track:=	false
-	match.match:=	na
-
-	//  ====================================================================================================================================================
-	//      Individual handlers
-	//  ====================================================================================================================================================
-
-//	@function	Runs initialization part of a script
-eval_init(Contexts contexts, Script script) =>
-	contexts_mutate(contexts, script.init.mutator)
-
-//  ---     Script: Action - Order Entry
-//          This is internal function handling TradingView Strategy Tester entries
-
-//	@function	This function executes a trade, if it's specified in the action
-// eval_trade(Contexts contexts, Init init, Pattern pattern) =>
-// 	var box	_box	=	na
-//     Action  _action =   pattern.action
-//     string  _hint   =   na(_action.hint) ? pattern.name : _action.hint
-
-// 	if _action.order != 0
-// 		_is_session	=	contexts_get_bool(contexts, "session", "open", true)
-// 		_profit		=	na(_action.profit)	? na : contexts_math(contexts,  _action.profit)
-// 		_loss		=	na(_action.loss)	? na : contexts_math(contexts,  _action.loss)
-//         _size       =   contexts_get_float(contexts, _action.size)
-
-// 		if _is_session and not bool(strategy.position_size)
-// 			_entry = false
-// 			_hint_profit	= na(_hint) ? "TP" : _hint + ": TP"
-// 			_hint_loss		= na(_hint) ? "SL" : _hint + ": SL"
-
-// 			if _action.order > 0 and init.long
-// 				_entry:= true
-// 				strategy.entry("long", direction = strategy.long, comment = _hint, qty = _size)
-// 				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
-// 			else if _action.order < 0 and init.short
-// 				_entry:= true
-// 				strategy.entry("short", direction = strategy.short, comment = _hint, qty = _size)
-// 				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
-
-// 			if _entry
-// 				contexts_set(contexts,	"trade", "entry",	true)
-
-//                 contexts_set(contexts,	"ctx",  "buy",      _action.order > 0)
-// 				contexts_set(contexts,	"ctx",  "sell",     _action.order < 0)
-
-// 				contexts_set(contexts,	"trade", "long",	_action.order > 0)
-// 				contexts_set(contexts,	"trade", "short",	_action.order < 0)
-// 				contexts_set(contexts,	"trade", "profit",	_profit)
-// 				contexts_set(contexts,	"trade", "loss",	_loss)
-
-// 				//	Reset trade length to zero
-// 				contexts_counter(contexts,	"trade", "length",	na)
-
-// 				alert(_hint)
-
-// 	if bool(strategy.position_size) and _action.close
-// 		contexts_set(contexts,	"trade", "closed",	true)
-// 		strategy.close_all("CBA")
-
-patterns_sort(Pattern[] patterns) =>
-	if patterns.size() > 1
-		for i = 0 to patterns.size() - 2
-			for j = i + 1 to patterns.size() - 1
-				if patterns.get(i).priority < patterns.get(j).priority
-					temp = patterns.get(i)
-					patterns.set(i, patterns.get(j))
-					patterns.set(j, temp)
-
-//	@function			Handles pattern detection; it tracks pattern state during individual bars for low resource usage
-//	@param	contexts	Contexts used for evaluation
-//	@param	patterns	Patterns you want to track and detect
-eval_pattern(Contexts contexts, Init init, Pattern[] patterns) =>
-	var Match[]		_matches	=	array.new<Match>()
-	Pattern[]		_patterns	=	array.new<Pattern>()
-
-	if use_init()
-		//	Prepare array of matches with default state; this must be run only once on the first bar
-		for __index = 0 to (patterns.size() == 0 ? na : patterns.size() - 1)
-			__pattern	=	patterns.get(__index)
-			if __pattern.enabled and __pattern.priority >= init.priority
-				_matches.push(match_create(__pattern.strict, __pattern.priority, __index))
-
-	for __match in _matches
-		__pattern	=	patterns.get(__match.pattern)
-		__rule		=	__pattern.candle.get(__match.rule)
-
-		if match(contexts, __rule)
-			__match.count	+=	1
-			__match.track	:=	true
-			if not __match.strict
-				__match.rule	+=	1
-
-		else if __match.strict
-			__match.track:=		false
-			__match.match:=		false
-
-		if __match.strict
-			__match.rule	+=	1
-
-		__match.length	+=	1
-
-		if __match.rule >= __pattern.candle.size()
-			__match.match:=		__match.track
-
-		if not __match.strict
-			if __match.count >= __pattern.candle.size()
-				__match.match:=		true
-
-			if __match.length >= __pattern.length
-				__match.match:=	__match.track and __match.count >= __pattern.candle.size()
-
-	for __match in _matches
-		if __match.match
-			_patterns.push(patterns.get(__match.pattern))
-
-			match_reset(__match)
-
-		if not na(__match.match) and not __match.match
-			match_reset(__match)
-
-	patterns_sort(_patterns)
-
-	_patterns
-
-eval_mark(Mark mark) =>
-	if not na(mark)
-		label.new(bar_index,
-         high,
-         xloc		= xloc.bar_index,
-         style		= style_yloc_of(mark.position),
-         yloc		= yloc_of(mark.position),
-         text		= mark.title,
-         tooltip	= mark.hint,
-         textcolor	= color_of(mark.text_color),
-         color		= color_of(mark.color)
-         )
-
-eval_action(Contexts contexts, Init init, Pattern[] patterns) =>
-	for __pattern in patterns
-		contexts_mutate	(contexts, __pattern.action.mutator)
-		// eval_trade			(contexts, init, __pattern)
-		eval_mark			(__pattern.action.mark)
-		if not __pattern.pass
-			break
-
-	patterns
-
-//	@function				Runs the scrpt, tracks patterns per-bar, and do whatever a script should do, yaay!
-//	@param		contexts	Current contexts from all provides script may access
-//	@param		script		Script itself; doesn't matter, where it comes from
-eval(Contexts contexts, Script script) =>
-	// Reset default states
-	contexts_set(contexts,	"trade", "entry",	false)
-	contexts_set(contexts,	"ctx",  "buy",      false)
-	contexts_set(contexts,	"ctx",  "sell",     false)
-
-	eval_action(contexts, script.init, eval_pattern(contexts, script.init, script.pattern))
-
-	script
-
-//  ====================================================================================================================================================
-//      Library: Parser
-//			Because PineScript has very strange behavior of imported libraries (same code works here, but not from the lib), I've to
-//			keep all the stuff here. Maybe it's better.
-//  ====================================================================================================================================================
-
-	//  ====================================================================================================================================================
-	//      Individual parsers
-	//          If want learn PiPi something new, here are parsers it uses.
-	//  ====================================================================================================================================================
-
-	//  --- Parse: Key
-	//      Resolve key in general: it detects contexts access or (const) value
-
-parse_key(string line) =>
-	string[]	_key = array.from(line)
-
-	if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
-		_context	=	str.substring(line, 1, str.pos(line, "."))
-		_name		=	str.substring(line, str.pos(line, ".") + 1)
-		_key		:=	array.from(_context, _name)
-
-	else if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
-		_context	=	str.substring(line, 1, str.pos(line, "."))
-		_name		=	str.substring(line, str.pos(line, ".") + 1, str.pos(line, "("))
-		_key		:=	array.from(_context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
-
-	_key
-
-	//  --- Parse: Init
-	//      Gateway for "init" part of the script
-
-parse_init(string[] stack, string line, Init init) =>
-	_text	=	str.split(line,	"\t")
-
-	switch _text.get(0)
-		"priority"	=>
-			if _text.size() == 2
-				init.priority:=		int(str.tonumber(_text.get(1)))
-		"long"		=>
-			if _text.size() == 2
-				switch _text.get(1)
-					"true"	=> init.long:=	true
-					"false"	=> init.long:=	false
-					=>	init.long:=	true
-		"short"		=>
-			if _text.size() == 2
-				switch _text.get(1)
-					"true"	=> init.short:=	true
-					"false"	=> init.short:=	false
-					=>	init.short:=	true
-		"set"		=>	stack.push("parse_set")
-
-	init
-
-	//  --- Parse: Set
-	//      Resolves individual "set" values
-
-parse_set(string line, Mutator[] mutator) =>
-	string[] _set = str.split(line, "\t")
-	if _set.size() == 3
-		mutator.push(Mutator.new(_set.get(0), parse_key(_set.get(1)), parse_key(_set.get(2))))
-
-	//  --- Parse: Pattern
-	//      Pattern section gateway; this parses everything related to "pattern" section
-
-parse_pattern(string[] stack, string line, Pattern pattern) =>
-	_text = str.split(line, "\t")
-
-	switch _text.get(0)
-		"name"		=>	pattern.name		:=	_text.size() == 2 ? _text.get(1) : na
-		"pass"		=>	pattern.pass		:=	true
-		"strict"	=>	pattern.strict		:=	true
-		"priority"	=>	pattern.priority	:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : 0
-		"length"	=>	pattern.length		:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : pattern.length
-		"!strict"	=>	pattern.strict		:=	false
-		"disabled"	=>	pattern.enabled		:=	false
-		"candle"	=>	stack.push("parse_pattern_candle")
-		"action"	=>	stack.push("parse_action")
-
-	pattern
-
-	//  --- Parse: Pattern -> Candle -> Flag
-	//      Resolve candle condition for flags (bool values)
-
-parse_pattern_candle_bool(string[] rule, bool flag, Candle candle) =>
-	_key = parse_key(rule.get(0))
-	if _key.size() == 2
-		candle.rule.push(rule_create("bool", _key, "=", array.from(flag ? "true" : "false")))
-
-	//  --- Parse: Pattern -> Candle -> Value
-	//      Resolve candle condition using value comparison
-
-parse_pattern_candle_float(string[] rule, Candle candle) =>
-	if rule.size() == 3
-		candle.rule.push(rule_create("float", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
-
-	//  --- Parse: Pattern -> Candle
-	//      Candle parsing gateway (resolves candle rules and everything related to candle section parsing)
-
-parse_pattern_candle(string line, Candle candle) =>
-	_rule = str.split(line, "\t")
-	log.info("parse_pattern_candle: {0}", _rule)
-
-	switch _rule.get(0)
-        "break"     =>
-            candle.stop:=   true
-		"bool"		=>
-			_rule.shift()
-			parse_pattern_candle_bool(_rule, true, candle)
-
-		"!bool"		=>
-			_rule.shift()
-			parse_pattern_candle_bool(_rule, false, candle)
-
-		"float"		=>
-			_rule.shift()
-			parse_pattern_candle_float(_rule, candle)
-
-	candle
-
-	//  --- Parse: Pattern -> Action -> [Profit | Loss]
-	//      Resolves action for setting profit/loss
-
-parse_action_profit_loss(string[] source, Action action) =>
-	_type = source.shift()
-
-	switch source.size()
-		1 =>
-			_value	=	parse_key(source.get(0))
-			switch _type
-				"profit"	=>	action.profit	:=	math_create(_value)
-				"loss"		=>	action.loss		:=	math_create(_value)
-
-		3 =>
-			_left		=	parse_key(source.get(0))
-			_operator	=	source.get(1)
-			_right		=	parse_key(source.get(2))
-			switch _type
-				"profit"	=>	action.profit	:=	math_create(_left, _operator, _right)
-				"loss"		=>	action.loss		:=	math_create(_left, _operator, _right)
-
-	action
-
-
-parse_action_mark(string line, Mark mark) =>
-    _line   =   str.split(line, "\t")
-
-    switch  _line.get(0)
-        "text"  =>
-            if _line.size() == 2
-                mark.title:=    _line.get(1)
-
-        "color"  =>
-            if _line.size() == 2
-                mark.color:=    _line.get(1)
-
-        "text-color"  =>
-            if _line.size() == 2
-                mark.text_color:=   _line.get(1)
-
-        "hint"  =>
-            if _line.size() == 2
-                mark.hint:=   _line.get(1)
-
-        "position"  =>
-            if _line.size() == 2
-                mark.position:=   _line.get(1)
-
-    mark
-
-	//  --- Parse: Pattern -> Action
-	//      Gateway for all supported actions in the script
-
-parse_action(string[] stack, string line, Action action) =>
-	_action	=	str.split(line, "\t")
-
-	switch _action.get(0)
-		"hint"				=>	action.hint:=	_action.size() == 2 ? _action.get(1) : na
-		"set"				=>	stack.push("parse_set")
-        "mark"				=>	stack.push("parse_action_mark")
-		"profit"			=>	parse_action_profit_loss(_action, action)
-		"loss"				=>	parse_action_profit_loss(_action, action)
-        "size"              =>
-            if _action.size() == 2
-                action.size     :=  parse_key(_action.get(1))
-		"long"				=>	action.order	:=	1
-		"short"				=>	action.order	:=	-1
-		"close"				=>	action.close	:=	true
-
-	action
-
-	//  ====================================================================================================================================================
-	//      Script Parser
-	//  ====================================================================================================================================================
-
-	//  --- Main script parser
-	//      PiPi Script (parts of script) goes here and parser produces a script, which could be executed
-
-parse(string[] script) =>
-	Script				_script		=	script_create()
-	Mutator[]			_mutator	=	na
-	Action				_action		=	na
-	Pattern				_pattern	=	na
-	Candle				_candle		=	na
-	string[]			_stack		=	array.new<string>()
-
-	for __source in script
-		_source		=	str.split(str.trim(__source), "\n")
-
-		for _line in _source
-			_text = str.trim(_line)
-
-			if str.startswith(_text, '//') or str.length(_text) == 0
-				continue
-
-			switch _text
-				"init" =>
-					_mutator:=	_script.init.mutator
-					_stack.push("parse_init")
-					continue
-
-				"pattern" =>
-					_pattern	:=	pattern_create()
-					_action		:=	_pattern.action
-					_script.pattern.push(_pattern)
-					_stack.push("parse_pattern")
-					continue
-
-				"candle" =>
-					_candle:=	candle_create()
-					_pattern.candle.push(_candle)
-
-				"action" =>
-					_mutator:=	_pattern.action.mutator
-
-                "mark" =>
-                    _action.mark:=  mark_create()
-
-				";"	=>
-					_stack.pop()
-					continue
-
-			if _stack.size() > 0
-				switch _stack.last()
-					"parse_init" =>
-						parse_init(_stack, _text, _script.init)
-
-					"parse_set" =>
-						parse_set(_text, _mutator)
-
-					"parse_pattern" =>
-						parse_pattern(_stack, _text, _pattern)
-
-					"parse_pattern_candle" =>
-						parse_pattern_candle(_text, _candle)
-
-					"parse_action" =>
-						parse_action(_stack, _text, _action)
-
-                    "parse_action_mark" =>
-						parse_action_mark(_text, _action.mark)
-
-	log.info("=== Init")
-
-	for _v in _script.init.mutator
-		log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
-
-	for __pattern in _script.pattern
-		log.info("=== Pattern [{0} - {1}]", na(__pattern.name) ? " - na - " : __pattern.name, __pattern.strict ? "strict" : "non-strict")
-
-		for __candle in __pattern.candle
-			log.info("== Candle [{0}]", __candle.stop ? "Breaker" : "Common")
-			for __rule in __candle.rule
-				log.info("- Rule [{0}] {1} {2} {3}", __rule.target, __rule.left, __rule.operator, __rule.right)
-
-		log.info("== Action")
-		for _v in __pattern.action.mutator
-			log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
-
-		if not na(__pattern.action.profit)
-			log.info("- Profit: {0} [{1}] {2}", __pattern.action.profit.left, __pattern.action.profit.operator, __pattern.action.profit.right)
-
-		if not na(__pattern.action.loss)
-			log.info("- Loss: {0} [{1}] {2}", __pattern.action.loss.left, __pattern.action.loss.operator, __pattern.action.loss.right)
-
-		if __pattern.action.order > 0
-			log.info("-	Long")
-
-		if __pattern.action.order < 0
-			log.info("-	Short")
-
-        if not na(__pattern.action.mark)
-            log.info("Mark [{0}], color [{1}]", __pattern.action.mark.title, __pattern.action.mark.color)
-
-        log.info("-	Position size {0}", __pattern.action.size)
-
-		if __pattern.action.close
-			log.info("-	Close")
-
-	_script
+// //	@type				Candle rule to match exactly one value/state/whatever
+// //	@field	target		Name/flag/value
+// //	@field	left		Where to get left side of the check; may be 1 (single value) or 2 (context access) pieces
+// //	@field	operator	What to say...
+// //	@field	right		Where to get right side of the check; may be 1 (single value) or 2 (context access) pieces
+// type Rule
+// 	string		target
+// 	string[]	left
+// 	string		operator
+// 	string[]	right
+
+// //	@type				Rules on a single Candle
+// //  @field  stop        True - when rules of this candle are true, this candle breaks pattern matching
+// //	@field	rule		Rules to check
+// type Candle
+//     bool		stop
+// 	Rule[]		rule
+
+// 	//	---		Factory methods
+
+// rule_create(string target, string[] left, string operator, string[] right)	=>	Rule.new(target, left, operator, right)
+// candle_create()																=>  Candle.new(false, array.new<Rule>())
+
+// 	//  ====================================================================================================================================================
+// 	//      Pattern matching
+// 	//  ====================================================================================================================================================
+
+// match(Contexts contexts, Rule rule) =>
+// 	switch rule.target
+// 		"bool"	=>
+// 			_left	=	contexts_get_bool(contexts, rule.left)
+// 			_right	=	contexts_get_bool(contexts, rule.right)
+
+// 			_left	==	_right
+
+// 		"float"	=>
+// 			_left	=	contexts_get_float(contexts,    rule.left)
+// 			_right	=	contexts_get_float(contexts,    rule.right)
+
+//             // log.info("Rule broken [{0}] [{1} ({2})] [{3}] [{4} ({5})]", rule.target, rule.key, _left, rule.operator, rule.value, _right)
+
+//             switch rule.operator
+// 				">"		=> _left >	_right
+// 				">="	=> _left >= _right
+// 				"<"		=> _left <	_right
+// 				"<="	=> _left <=	_right
+// 				"=="	=> _left ==	_right
+// 				"!="	=> _left !=	_right
+
+// 		=> true
+
+// match(Contexts contexts, Candle candle) =>
+// 	bool _result = true
+
+// 	for __rule in candle.rule
+//         _match  =  match(contexts, __rule)
+
+//         if candle.stop
+//             if _match
+//                 _result:=   false
+//                 break
+//             continue
+
+// 		if not _match
+// 			_result:= false
+// 			break
+
+// 	_result
+
+// //  ====================================================================================================================================================
+// //      Library: Script
+// //			This part is responsible for a script execution
+// //  ====================================================================================================================================================
+
+// 	//  ====================================================================================================================================================
+// 	//      Types
+// 	//  ====================================================================================================================================================
+
+// //	@type				Match tracking of the given pattern
+// //	@field	strict		Matching mode: strict - consecutive candles must match; non-strict, candles are checked continually
+// //	@field	priority	When multiple matches win, one with highest priority will be executed
+// //	@field	pattern		Array index of pattern (in script, or whatever is used to store patterns) this match belongs to
+// //	@field	rule		Index to current pattern rule
+// //	@field	count		Count of successfull matches
+// //	@field	length		Current match "runtime" - number of bars check runs
+// //	@field	track		Track current state of match; if this one falls "false", pattern matching failed and this Match should reset
+// //	@field	match		Match status; if true, pattern's action should be executed + this state reset
+// type Match
+// 	bool	strict
+// 	float	priority
+// 	int		pattern
+// 	int		rule
+// 	int		count
+// 	int		length
+// 	bool	track
+// 	bool	match
+
+// //  @type               Action can create a mark (label)
+// //  @field  title       Text to display
+// //  @field  color       Mark color
+// type Mark
+//     string              title
+//     string              hint
+//     string              color
+//     string              text_color
+//     string              position
+
+// //	@type				When a pattern matches, execute an action
+// //	@field	mutator	Set values
+// //	@field	profit		Set profit (does not execute a trade)
+// //	@field	loss		Set loss (does not execute a trade)
+// //	@field	order		> 0, long, < 0 short, everything else - nothing
+// //  @field  mark        Action may display mark (label)
+// type Action
+// 	string				hint
+// 	Mutator[]			mutator
+// 	Math				profit
+// 	Math				loss
+//     string[]            size
+// 	int					order
+// 	bool				close
+//     Mark                mark
+
+// //	@type				Pattern used to match multiple candles
+// //	@field	priority	Higher pattern priority wins, when there are multiple winning Patterns
+// //	@field	strict		Strict means all candles must be next to each other; non-strict - pattern is checked on the fly, last matching candle commits true
+// //	@field	length		When non-strict pattern is enabled, length defines how many bars to wait to finish a pattern before pattern is considered broken
+// //	@field	enabled		Feature for the user to enable/disable pattern when trying different appraches
+// //	@field	pass		If true, pattern will not break, thus continuing to the next matching pattern in a row
+// //	@field	candle		Array of candle rules
+// //	@field	action		Action being taken when pattern is matched
+// type Pattern
+// 	string				name
+// 	int					priority
+// 	bool				strict
+// 	int					length
+// 	bool				enabled
+// 	bool				pass
+// 	Candle[]			candle
+// 	Action				action
+
+// //	@type				Startup part of the script
+// //	@field	set_value	Those values will be set into the context(s)
+// type Init
+// 	int					priority
+// 	bool				long
+// 	bool				short
+// 	Mutator[]			mutator
+
+// //	@type				All the candle matching stuff
+// //	@field	init		Startup part of script; should be called *exactly* once
+// //	@field	pattern		Patterns used to match candles
+// type Script
+// 	Init				init
+// 	Pattern[]			pattern
+
+// 	//	---		Factory methods
+
+// match_create(bool strict, float priority, int pattern)		=>	Match.new(strict, priority, pattern, 0, 0, 0, false, na)
+// mark_create()												=>  Mark.new(na, na, "blue", "white", "above")
+// action_create()												=>  Action.new(na, array.new<Mutator>(), na, na, array.from("2"), 0, false, na)
+// pattern_create()											=>  Pattern.new(na, 0, false, 10, true, false, array.new<Candle>(), action_create())
+// init_create()												=>  Init.new(0, true, true, array.new<Mutator>())
+// script_create()												=>  Script.new(init_create(), array.new<Pattern>())
+
+// 	//  ====================================================================================================================================================
+// 	//      Utils
+// 	//  ====================================================================================================================================================
+
+// match_reset(Match match)	=>
+// 	match.rule:=	0
+// 	match.count:=	0
+// 	match.length:=	0
+// 	match.track:=	false
+// 	match.match:=	na
+
+// 	//  ====================================================================================================================================================
+// 	//      Individual handlers
+// 	//  ====================================================================================================================================================
+
+// //	@function	Runs initialization part of a script
+// eval_init(Contexts contexts, Script script) =>
+// 	contexts_mutate(contexts, script.init.mutator)
+
+// //  ---     Script: Action - Order Entry
+// //          This is internal function handling TradingView Strategy Tester entries
+
+// //	@function	This function executes a trade, if it's specified in the action
+// // eval_trade(Contexts contexts, Init init, Pattern pattern) =>
+// // 	var box	_box	=	na
+// //     Action  _action =   pattern.action
+// //     string  _hint   =   na(_action.hint) ? pattern.name : _action.hint
+
+// // 	if _action.order != 0
+// // 		_is_session	=	contexts_get_bool(contexts, "session", "open", true)
+// // 		_profit		=	na(_action.profit)	? na : contexts_math(contexts,  _action.profit)
+// // 		_loss		=	na(_action.loss)	? na : contexts_math(contexts,  _action.loss)
+// //         _size       =   contexts_get_float(contexts, _action.size)
+
+// // 		if _is_session and not bool(strategy.position_size)
+// // 			_entry = false
+// // 			_hint_profit	= na(_hint) ? "TP" : _hint + ": TP"
+// // 			_hint_loss		= na(_hint) ? "SL" : _hint + ": SL"
+
+// // 			if _action.order > 0 and init.long
+// // 				_entry:= true
+// // 				strategy.entry("long", direction = strategy.long, comment = _hint, qty = _size)
+// // 				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
+// // 			else if _action.order < 0 and init.short
+// // 				_entry:= true
+// // 				strategy.entry("short", direction = strategy.short, comment = _hint, qty = _size)
+// // 				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
+
+// // 			if _entry
+// // 				contexts_set(contexts,	"trade", "entry",	true)
+
+// //                 contexts_set(contexts,	"ctx",  "buy",      _action.order > 0)
+// // 				contexts_set(contexts,	"ctx",  "sell",     _action.order < 0)
+
+// // 				contexts_set(contexts,	"trade", "long",	_action.order > 0)
+// // 				contexts_set(contexts,	"trade", "short",	_action.order < 0)
+// // 				contexts_set(contexts,	"trade", "profit",	_profit)
+// // 				contexts_set(contexts,	"trade", "loss",	_loss)
+
+// // 				//	Reset trade length to zero
+// // 				contexts_counter(contexts,	"trade", "length",	na)
+
+// // 				alert(_hint)
+
+// // 	if bool(strategy.position_size) and _action.close
+// // 		contexts_set(contexts,	"trade", "closed",	true)
+// // 		strategy.close_all("CBA")
+
+// patterns_sort(Pattern[] patterns) =>
+// 	if patterns.size() > 1
+// 		for i = 0 to patterns.size() - 2
+// 			for j = i + 1 to patterns.size() - 1
+// 				if patterns.get(i).priority < patterns.get(j).priority
+// 					temp = patterns.get(i)
+// 					patterns.set(i, patterns.get(j))
+// 					patterns.set(j, temp)
+
+// //	@function			Handles pattern detection; it tracks pattern state during individual bars for low resource usage
+// //	@param	contexts	Contexts used for evaluation
+// //	@param	patterns	Patterns you want to track and detect
+// eval_pattern(Contexts contexts, Init init, Pattern[] patterns) =>
+// 	var Match[]		_matches	=	array.new<Match>()
+// 	Pattern[]		_patterns	=	array.new<Pattern>()
+
+// 	if use_init()
+// 		//	Prepare array of matches with default state; this must be run only once on the first bar
+// 		for __index = 0 to (patterns.size() == 0 ? na : patterns.size() - 1)
+// 			__pattern	=	patterns.get(__index)
+// 			if __pattern.enabled and __pattern.priority >= init.priority
+// 				_matches.push(match_create(__pattern.strict, __pattern.priority, __index))
+
+// 	for __match in _matches
+// 		__pattern	=	patterns.get(__match.pattern)
+// 		__rule		=	__pattern.candle.get(__match.rule)
+
+// 		if match(contexts, __rule)
+// 			__match.count	+=	1
+// 			__match.track	:=	true
+// 			if not __match.strict
+// 				__match.rule	+=	1
+
+// 		else if __match.strict
+// 			__match.track:=		false
+// 			__match.match:=		false
+
+// 		if __match.strict
+// 			__match.rule	+=	1
+
+// 		__match.length	+=	1
+
+// 		if __match.rule >= __pattern.candle.size()
+// 			__match.match:=		__match.track
+
+// 		if not __match.strict
+// 			if __match.count >= __pattern.candle.size()
+// 				__match.match:=		true
+
+// 			if __match.length >= __pattern.length
+// 				__match.match:=	__match.track and __match.count >= __pattern.candle.size()
+
+// 	for __match in _matches
+// 		if __match.match
+// 			_patterns.push(patterns.get(__match.pattern))
+
+// 			match_reset(__match)
+
+// 		if not na(__match.match) and not __match.match
+// 			match_reset(__match)
+
+// 	patterns_sort(_patterns)
+
+// 	_patterns
+
+// eval_mark(Mark mark) =>
+// 	if not na(mark)
+// 		label.new(bar_index,
+//          high,
+//          xloc		= xloc.bar_index,
+//          style		= style_yloc_of(mark.position),
+//          yloc		= yloc_of(mark.position),
+//          text		= mark.title,
+//          tooltip	= mark.hint,
+//          textcolor	= color_of(mark.text_color),
+//          color		= color_of(mark.color)
+//          )
+
+// eval_action(Contexts contexts, Init init, Pattern[] patterns) =>
+// 	for __pattern in patterns
+// 		contexts_mutate	(contexts, __pattern.action.mutator)
+// 		// eval_trade			(contexts, init, __pattern)
+// 		eval_mark			(__pattern.action.mark)
+// 		if not __pattern.pass
+// 			break
+
+// 	patterns
+
+// //	@function				Runs the scrpt, tracks patterns per-bar, and do whatever a script should do, yaay!
+// //	@param		contexts	Current contexts from all provides script may access
+// //	@param		script		Script itself; doesn't matter, where it comes from
+// eval(Contexts contexts, Script script) =>
+// 	// Reset default states
+// 	contexts_set(contexts,	"trade", "entry",	false)
+// 	contexts_set(contexts,	"ctx",  "buy",      false)
+// 	contexts_set(contexts,	"ctx",  "sell",     false)
+
+// 	eval_action(contexts, script.init, eval_pattern(contexts, script.init, script.pattern))
+
+// 	script
+
+// //  ====================================================================================================================================================
+// //      Library: Parser
+// //			Because PineScript has very strange behavior of imported libraries (same code works here, but not from the lib), I've to
+// //			keep all the stuff here. Maybe it's better.
+// //  ====================================================================================================================================================
+
+// 	//  ====================================================================================================================================================
+// 	//      Individual parsers
+// 	//          If want learn PiPi something new, here are parsers it uses.
+// 	//  ====================================================================================================================================================
+
+// 	//  --- Parse: Key
+// 	//      Resolve key in general: it detects contexts access or (const) value
+
+// parse_key(string line) =>
+// 	string[]	_key = array.from(line)
+
+// 	if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
+// 		_context	=	str.substring(line, 1, str.pos(line, "."))
+// 		_name		=	str.substring(line, str.pos(line, ".") + 1)
+// 		_key		:=	array.from(_context, _name)
+
+// 	else if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
+// 		_context	=	str.substring(line, 1, str.pos(line, "."))
+// 		_name		=	str.substring(line, str.pos(line, ".") + 1, str.pos(line, "("))
+// 		_key		:=	array.from(_context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
+
+// 	_key
+
+// 	//  --- Parse: Init
+// 	//      Gateway for "init" part of the script
+
+// parse_init(string[] stack, string line, Init init) =>
+// 	_text	=	str.split(line,	"\t")
+
+// 	switch _text.get(0)
+// 		"priority"	=>
+// 			if _text.size() == 2
+// 				init.priority:=		int(str.tonumber(_text.get(1)))
+// 		"long"		=>
+// 			if _text.size() == 2
+// 				switch _text.get(1)
+// 					"true"	=> init.long:=	true
+// 					"false"	=> init.long:=	false
+// 					=>	init.long:=	true
+// 		"short"		=>
+// 			if _text.size() == 2
+// 				switch _text.get(1)
+// 					"true"	=> init.short:=	true
+// 					"false"	=> init.short:=	false
+// 					=>	init.short:=	true
+// 		"set"		=>	stack.push("parse_set")
+
+// 	init
+
+// 	//  --- Parse: Set
+// 	//      Resolves individual "set" values
+
+// parse_set(string line, Mutator[] mutator) =>
+// 	string[] _set = str.split(line, "\t")
+// 	if _set.size() == 3
+// 		mutator.push(Mutator.new(_set.get(0), parse_key(_set.get(1)), parse_key(_set.get(2))))
+
+// 	//  --- Parse: Pattern
+// 	//      Pattern section gateway; this parses everything related to "pattern" section
+
+// parse_pattern(string[] stack, string line, Pattern pattern) =>
+// 	_text = str.split(line, "\t")
+
+// 	switch _text.get(0)
+// 		"name"		=>	pattern.name		:=	_text.size() == 2 ? _text.get(1) : na
+// 		"pass"		=>	pattern.pass		:=	true
+// 		"strict"	=>	pattern.strict		:=	true
+// 		"priority"	=>	pattern.priority	:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : 0
+// 		"length"	=>	pattern.length		:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : pattern.length
+// 		"!strict"	=>	pattern.strict		:=	false
+// 		"disabled"	=>	pattern.enabled		:=	false
+// 		"candle"	=>	stack.push("parse_pattern_candle")
+// 		"action"	=>	stack.push("parse_action")
+
+// 	pattern
+
+// 	//  --- Parse: Pattern -> Candle -> Flag
+// 	//      Resolve candle condition for flags (bool values)
+
+// parse_pattern_candle_bool(string[] rule, bool flag, Candle candle) =>
+// 	_key = parse_key(rule.get(0))
+// 	if _key.size() == 2
+// 		candle.rule.push(rule_create("bool", _key, "=", array.from(flag ? "true" : "false")))
+
+// 	//  --- Parse: Pattern -> Candle -> Value
+// 	//      Resolve candle condition using value comparison
+
+// parse_pattern_candle_float(string[] rule, Candle candle) =>
+// 	if rule.size() == 3
+// 		candle.rule.push(rule_create("float", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
+
+// 	//  --- Parse: Pattern -> Candle
+// 	//      Candle parsing gateway (resolves candle rules and everything related to candle section parsing)
+
+// parse_pattern_candle(string line, Candle candle) =>
+// 	_rule = str.split(line, "\t")
+// 	log.info("parse_pattern_candle: {0}", _rule)
+
+// 	switch _rule.get(0)
+//         "break"     =>
+//             candle.stop:=   true
+// 		"bool"		=>
+// 			_rule.shift()
+// 			parse_pattern_candle_bool(_rule, true, candle)
+
+// 		"!bool"		=>
+// 			_rule.shift()
+// 			parse_pattern_candle_bool(_rule, false, candle)
+
+// 		"float"		=>
+// 			_rule.shift()
+// 			parse_pattern_candle_float(_rule, candle)
+
+// 	candle
+
+// 	//  --- Parse: Pattern -> Action -> [Profit | Loss]
+// 	//      Resolves action for setting profit/loss
+
+// parse_action_profit_loss(string[] source, Action action) =>
+// 	_type = source.shift()
+
+// 	switch source.size()
+// 		1 =>
+// 			_value	=	parse_key(source.get(0))
+// 			switch _type
+// 				"profit"	=>	action.profit	:=	math_create(_value)
+// 				"loss"		=>	action.loss		:=	math_create(_value)
+
+// 		3 =>
+// 			_left		=	parse_key(source.get(0))
+// 			_operator	=	source.get(1)
+// 			_right		=	parse_key(source.get(2))
+// 			switch _type
+// 				"profit"	=>	action.profit	:=	math_create(_left, _operator, _right)
+// 				"loss"		=>	action.loss		:=	math_create(_left, _operator, _right)
+
+// 	action
+
+
+// parse_action_mark(string line, Mark mark) =>
+//     _line   =   str.split(line, "\t")
+
+//     switch  _line.get(0)
+//         "text"  =>
+//             if _line.size() == 2
+//                 mark.title:=    _line.get(1)
+
+//         "color"  =>
+//             if _line.size() == 2
+//                 mark.color:=    _line.get(1)
+
+//         "text-color"  =>
+//             if _line.size() == 2
+//                 mark.text_color:=   _line.get(1)
+
+//         "hint"  =>
+//             if _line.size() == 2
+//                 mark.hint:=   _line.get(1)
+
+//         "position"  =>
+//             if _line.size() == 2
+//                 mark.position:=   _line.get(1)
+
+//     mark
+
+// 	//  --- Parse: Pattern -> Action
+// 	//      Gateway for all supported actions in the script
+
+// parse_action(string[] stack, string line, Action action) =>
+// 	_action	=	str.split(line, "\t")
+
+// 	switch _action.get(0)
+// 		"hint"				=>	action.hint:=	_action.size() == 2 ? _action.get(1) : na
+// 		"set"				=>	stack.push("parse_set")
+//         "mark"				=>	stack.push("parse_action_mark")
+// 		"profit"			=>	parse_action_profit_loss(_action, action)
+// 		"loss"				=>	parse_action_profit_loss(_action, action)
+//         "size"              =>
+//             if _action.size() == 2
+//                 action.size     :=  parse_key(_action.get(1))
+// 		"long"				=>	action.order	:=	1
+// 		"short"				=>	action.order	:=	-1
+// 		"close"				=>	action.close	:=	true
+
+// 	action
+
+// 	//  ====================================================================================================================================================
+// 	//      Script Parser
+// 	//  ====================================================================================================================================================
+
+// 	//  --- Main script parser
+// 	//      PiPi Script (parts of script) goes here and parser produces a script, which could be executed
+
+// parse(string[] script) =>
+// 	Script				_script		=	script_create()
+// 	Mutator[]			_mutator	=	na
+// 	Action				_action		=	na
+// 	Pattern				_pattern	=	na
+// 	Candle				_candle		=	na
+// 	string[]			_stack		=	array.new<string>()
+
+// 	for __source in script
+// 		_source		=	str.split(str.trim(__source), "\n")
+
+// 		for _line in _source
+// 			_text = str.trim(_line)
+
+// 			if str.startswith(_text, '//') or str.length(_text) == 0
+// 				continue
+
+// 			switch _text
+// 				"init" =>
+// 					_mutator:=	_script.init.mutator
+// 					_stack.push("parse_init")
+// 					continue
+
+// 				"pattern" =>
+// 					_pattern	:=	pattern_create()
+// 					_action		:=	_pattern.action
+// 					_script.pattern.push(_pattern)
+// 					_stack.push("parse_pattern")
+// 					continue
+
+// 				"candle" =>
+// 					_candle:=	candle_create()
+// 					_pattern.candle.push(_candle)
+
+// 				"action" =>
+// 					_mutator:=	_pattern.action.mutator
+
+//                 "mark" =>
+//                     _action.mark:=  mark_create()
+
+// 				";"	=>
+// 					_stack.pop()
+// 					continue
+
+// 			if _stack.size() > 0
+// 				switch _stack.last()
+// 					"parse_init" =>
+// 						parse_init(_stack, _text, _script.init)
+
+// 					"parse_set" =>
+// 						parse_set(_text, _mutator)
+
+// 					"parse_pattern" =>
+// 						parse_pattern(_stack, _text, _pattern)
+
+// 					"parse_pattern_candle" =>
+// 						parse_pattern_candle(_text, _candle)
+
+// 					"parse_action" =>
+// 						parse_action(_stack, _text, _action)
+
+//                     "parse_action_mark" =>
+// 						parse_action_mark(_text, _action.mark)
+
+// 	log.info("=== Init")
+
+// 	for _v in _script.init.mutator
+// 		log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
+
+// 	for __pattern in _script.pattern
+// 		log.info("=== Pattern [{0} - {1}]", na(__pattern.name) ? " - na - " : __pattern.name, __pattern.strict ? "strict" : "non-strict")
+
+// 		for __candle in __pattern.candle
+// 			log.info("== Candle [{0}]", __candle.stop ? "Breaker" : "Common")
+// 			for __rule in __candle.rule
+// 				log.info("- Rule [{0}] {1} {2} {3}", __rule.target, __rule.left, __rule.operator, __rule.right)
+
+// 		log.info("== Action")
+// 		for _v in __pattern.action.mutator
+// 			log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
+
+// 		if not na(__pattern.action.profit)
+// 			log.info("- Profit: {0} [{1}] {2}", __pattern.action.profit.left, __pattern.action.profit.operator, __pattern.action.profit.right)
+
+// 		if not na(__pattern.action.loss)
+// 			log.info("- Loss: {0} [{1}] {2}", __pattern.action.loss.left, __pattern.action.loss.operator, __pattern.action.loss.right)
+
+// 		if __pattern.action.order > 0
+// 			log.info("-	Long")
+
+// 		if __pattern.action.order < 0
+// 			log.info("-	Short")
+
+//         if not na(__pattern.action.mark)
+//             log.info("Mark [{0}], color [{1}]", __pattern.action.mark.title, __pattern.action.mark.color)
+
+//         log.info("-	Position size {0}", __pattern.action.size)
+
+// 		if __pattern.action.close
+// 			log.info("-	Close")
+
+// 	_script
 
 //  ====================================================================================================================================================
 //      Library: source
@@ -1289,11 +1289,10 @@ use_day_fibbonachi(Contexts contexts) =>
 	//      Session range
 	//  ====================================================================================================================================================
 
-use_session(Contexts contexts) =>
+use_session(Contexts contexts, string time) =>
 	var Context		_context	=	context_create("session")
-	var string		_time		=	contexts_get_string(contexts,   "ctx",	"session.time",			"1000-2200")
 	var bool		_exclusive	=	contexts_get_bool(contexts,     "ctx",	"session.exclusive",	true)
-	bool			_is_session	=	_exclusive ? bool(time(timeframe.period, _time)) : true
+	bool			_is_session	=	_exclusive ? bool(time(timeframe.period, time)) : true
 
 	context_set(_context, "open", 			_is_session)
 	context_set(_context, "is-open", 		_is_session and not _is_session[1])
@@ -1646,6 +1645,96 @@ use_structure(Contexts contexts, int length, float size, int fast_touches, int s
 
 	use_context(contexts, _context)
 
+	//  ====================================================================================================================================================
+	//      Simple Trends detector
+	//  ====================================================================================================================================================
+
+use_trends(Contexts contexts, int length, int bars, int lookback, int runtime) =>
+	var Context	_context	=	context_create("trends")
+
+	var int		_index		=	na
+	var	int		_runtime	=	0
+	var int		_trend		=	0
+	var int		_count		=	0
+	bool		_kill		=	false
+
+	var	Level	_level		=	na
+
+	float		_top		=	math.max(open, close)
+	float		_bottom		=	math.min(open, close)
+	float		_body		=	_top - _bottom
+
+	bool		_rising		=	ta.rising(_bottom, length)
+	bool		_falling	=	ta.falling(_top, length)
+
+	var line	_line_break	=	na
+
+	if _trend == 1
+		_runtime	+=	1
+
+		if _bottom > _level.high
+			_count	:=	0
+			level_high(_level, _top)
+
+		if close < open and _bottom < _bottom[1]
+			_count	+=	1
+
+		if _runtime >= runtime and (_bottom < _level.low or (close < open and (_bottom - _level.low) <= _level.size * 0.7))
+			_count	+=	2
+
+		if close >= open
+			_count	:=	math.max(0, _count - 1)
+
+		line.set_x2(_line_break, bar_index)
+		line.set_y2(_line_break, _level.high)
+
+	else if _trend == -1
+		_runtime	+=	1
+
+		if _top < _level.high
+			_count	:=	0
+			level_high(_level, _bottom)
+
+		if close >= open and _top > _top[1]
+			_count	+=	1
+
+		if _runtime >= runtime and (_top > _level.low or (close >= open and (_top - _level.low) >= _level.size * 0.3))
+			_count	+=	2
+
+		if close <= open
+			_count	:=	math.max(0, _count - 1)
+
+		line.set_x2(_line_break, bar_index)
+		line.set_y2(_line_break, _level.high)
+
+	if _count >= bars or _kill
+		line.delete(_line_break)
+		_runtime	:=	0
+		_trend	:=	0
+		_level	:=	na
+
+	if close >= open and ta.rising(open, length) and _top > _top[lookback] and _trend == 0
+		_runtime	:=	0
+		_count		:=	0
+		_level		:=	level_create("up", _bottom, _top)
+
+		_index		:=	bar_index
+		_trend		:=	1
+
+		_line_break:=	line.new(bar_index, _level.low, bar_index, _level.high, extend = extend.both, color = color.green, width = 2)
+
+	if close < open and ta.falling(close, length) and _bottom < _bottom[lookback] and _trend == 0
+		_runtime	:=	0
+		_count		:=	0
+		_level		:=	level_create("down", _top, _bottom)
+
+		_index		:=	bar_index
+		_trend		:=	-1
+
+		_line_break:=	line.new(bar_index, _level.low, bar_index, _level.high, extend = extend.both, color = color.red, width = 2)
+
+	use_context(contexts, _context)
+
 //  ====================================================================================================================================================
 //      PiPi Local code
 //			All the stuff here is "proprietary" for PiPi, thus it's not "possible" to move those things into a lib.
@@ -1661,6 +1750,12 @@ var int			i_structure_length			=	input.int(		120,	"↔ Length",				minval = 3, g
 var float		i_structure_size			=	input.float(	0.5,	"Size",					minval = 0, step = 0.1, group = group_structure, display = display.none, tooltip = "Candle level detection size (tolerance to count the candle as a touch)")
 var int			i_structure_fast_touches	=	input.int(		5,		"Fast Touches",			minval = 0, group = group_structure, display = display.none, tooltip = "Minimum number of contacts with candle's levels to draw a structure")
 var int			i_structure_slow_touches	=	input.int(		9,		"Slow Touches",			minval = 0, group = group_structure, display = display.none, tooltip = "Minimum number of contacts with candle's levels to draw a structure")
+
+const string	group_trends				=	"- Trends -"
+var int			i_trends_length				=	input.int(		1,		"↔ Length",				minval = 1, group = group_trends, display = display.none)
+var int			i_trends_bars				=	input.int(		2,		"Bars",					minval = 1, group = group_trends, display = display.none, tooltip = "How many bars are needed to confirm trend break")
+var int			i_trends_lookback			=	input.int(		3,		"Lookback",				minval = 1, group = group_trends, display = display.none, tooltip = "How far bar comparison must looks to check price to enter a trend")
+var int			i_trends_runtime			=	input.int(		3,		"Runtime",				minval = 0, group = group_trends, display = display.none, tooltip = "Runtime (number of bars during trend) tolernance to trend breaks")
 
 const string	group_macd			=	"- MACD -"
 var int			i_macd_fast			=	input.int(	16,		"⏱Fast",					inline = "macd", group = group_macd, display = display.none)
@@ -1709,7 +1804,7 @@ var float		i_atr_signal_factor			=	input.float(	3,		"",					inline = "atr-signal
 
 _fibb_alpha	=	50
 const string	group_day					=	"- Day Structure -"
-var bool		i_day_level					=	input.bool(		false,			"📅 Day Low/High",		group = group_day, display = display.none,	inline = "day")
+var bool		i_day_level					=	input.bool(		true,			"📅 Day Low/High",		group = group_day, display = display.none,	inline = "day")
 var color		i_day_high_color			=	input.color(	color.new(color.teal, 50),	"",			group = group_day, display = display.none,	inline = "day")
 var color		i_day_low_color				=	input.color(	color.new(color.fuchsia, 50),	"",		group = group_day, display = display.none,	inline = "day")
 var bool		i_day_fibb					=	input.bool(		false,			"Φ Fibbonachi",			group = group_day, display = display.none,	inline = "day-fibb",			tooltip = "Display day's low/high + it's fibbonachi levels")
@@ -1722,17 +1817,18 @@ var color		i_day_fibb_color_6			=	input.color(	color.new(color.aqua,		_fibb_alph
 var color		i_day_fibb_color_7			=	input.color(	color.new(color.blue,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
 
 const string	group_session			=	"- Session -"
-var bool		i_session_background	=	input.bool(	false,	"🪣Background",			group = group_session, display = display.none)
+var string		i_session_time			=	input.string(	"1000-2200",	"⏱Time range",			group = group_session, display = display.none)
+var bool		i_session_background	=	input.bool(		false,			"🪣Background",			group = group_session, display = display.none)
 
-const string	_script_hint		=	"Here you can put your 'pattern' parts of script; there is a limit this input can hold, so use reasonable amount of 'pattern's per input."
-var	string		i_script_0			=	input.text_area("", "- 😎 Init 😎 -",	display = display.none, tooltip = "Here you can put initialization part of the script")
-var	string		i_script_1			=	input.text_area("", "- 😎 Script #1 😎 -",	display = display.none, tooltip = _script_hint)
-var	string		i_script_2			=	input.text_area("", "- 😎 Script #2 😎 -",	display = display.none, tooltip = _script_hint)
-var	string		i_script_3			=	input.text_area("", "- 😎 Script #3 😎 -",	display = display.none,	tooltip = _script_hint)
-var	string		i_script_4			=	input.text_area("", "- 😎 Script #4 😎 -",	display = display.none,	tooltip = _script_hint)
+// const string	_script_hint		=	"Here you can put your 'pattern' parts of script; there is a limit this input can hold, so use reasonable amount of 'pattern's per input."
+// var	string		i_script_0			=	input.text_area("", "- 😎 Init 😎 -",	display = display.none, tooltip = "Here you can put initialization part of the script")
+// var	string		i_script_1			=	input.text_area("", "- 😎 Script #1 😎 -",	display = display.none, tooltip = _script_hint)
+// var	string		i_script_2			=	input.text_area("", "- 😎 Script #2 😎 -",	display = display.none, tooltip = _script_hint)
+// var	string		i_script_3			=	input.text_area("", "- 😎 Script #3 😎 -",	display = display.none,	tooltip = _script_hint)
+// var	string		i_script_4			=	input.text_area("", "- 😎 Script #4 😎 -",	display = display.none,	tooltip = _script_hint)
 
 // hack, hehehe
-var string[]	i_script				=	array.from(i_script_0, i_script_1, i_script_2, i_script_3, i_script_4)
+// var string[]	i_script				=	array.from(i_script_0, i_script_1, i_script_2, i_script_3, i_script_4)
 
 	//  ====================================================================================================================================================
 	//      Types specific for this system
@@ -1757,31 +1853,31 @@ result_create() =>
 	//  ====================================================================================================================================================
 
 //	@function	Main entry point of this indicator; even without any plotting, it could be used for strategy testing using TradingView built-in tester
-main(string[] script) =>
+main() =>
 	var Result          _result     =	result_create()
     Contexts        	_contexts   =   _result.contexts
 	// var Script   		_script		=	parse(script)
 
-	if use_init()
-        use_defaults     			(_contexts)
-		// eval_init					(_contexts, _script)
+	use_defaults     			(_contexts)
+	// eval_init					(_contexts, _script)
 
 	//	---	Individual providers (sources); if you want to add your own indicator/provider/whatever, put it here
 
 	//	Candle "must" be first as others may want to access values it provides (candle has no Dependencies)
-	use_candle           		(_contexts)
+	// use_candle           		(_contexts)
     use_day              		(_contexts)
     use_day_fibbonachi   		(_contexts)
     use_ema              		(_contexts, i_ema_length_1, i_ema_length_2, i_ema_length_3, i_ema_length_4, i_ema_length_5, i_ema_length_6)
     use_cci              		(_contexts, i_cci_length)
-	use_session          		(_contexts)
+	use_session          		(_contexts, i_session_time)
 	use_volume					(_contexts)
 	use_macd					(_contexts, i_macd_fast, i_macd_slow, i_macd_signal)
 	use_super_trend2			(_contexts, i_super_trend2_length, i_super_trend2_mutliplier)
 	use_atr_signal				(_contexts, i_atr_signal_length, i_atr_signal_factor)
 	use_structure				(_contexts, i_structure_length, i_structure_size, i_structure_fast_touches, i_structure_slow_touches)
+	use_trends					(_contexts, i_trends_length, i_trends_bars, i_trends_lookback, i_trends_runtime)
 	//	Candle levels "must" be last, because providers may levels which candle handles (computes flags against those levels)
-	use_candle_levels    		(_contexts)
+	// use_candle_levels    		(_contexts)
 
 	//	---	That's it, there is nothing else interesting; if you are searching for the magick executing all actions and so on,
 	//		Look into script as it handles pattern matching, action execution and all the other cool stuff
@@ -1797,7 +1893,7 @@ main(string[] script) =>
 	//      Main Entry execution
 	//  ====================================================================================================================================================
 
-_result		=	main(i_script)
+_result		=	main()
 _contexts	=	_result.contexts
 
 	//  ====================================================================================================================================================

@@ -87,31 +87,31 @@ level_inside(Level level, float value) =>	value >= level.low and value <= level.
 //	@param		index	Start index (bar_index)
 //	@param		last	Last index; "na" for extend right
 //	@param		color	Yes, color
-//	@param		simple	Simple mode draws only single line (Levels "level"), otherwise all level lines are rendered (low, high, level)
-level_render_zone(string name, Level level, int index, int last, color color, bool simple = true) =>
-	var map<string, line>	_lines = map.new<string, line>()
-	var map<string, box>	_boxes = map.new<string, box>()
+//	@param		zone	Simple mode draws only single line (Levels "level"), otherwise all level lines are rendered (low, high, level)
+level_render_zone(string name, Level level, int index, int last, color color, bool zone = false) =>
+	var line	_line_low		=	na
+	var line	_line_level		=	na
+	var line	_line_high		=	na
+	var box		_box			=	na
 
-	string	_name_low	=	name + ".low"
-	string	_name_level	=	name + ".level"
-	string	_name_high	=	name + ".high"
-	string	_name_box	=	name
+	line.delete(_line_low)
+	line.delete(_line_level)
+	line.delete(_line_high)
 
-	line.delete(_lines.get(_name_high))
-	line.delete(_lines.get(_name_level))
-	line.delete(_lines.get(_name_low))
+	box.delete(_box)
 
-	box.delete(_boxes.get(_name_box))
+	if not na(level)
+		_index	=	na(index)	? bar_index		: index
+		_last	=	na(last)	? index + 1		: last
+		_extend	=	na(last)	? extend.right	: extend.none
+		_extend:=	na(last) and na(index) ? extend.both : _extend
 
-	_last	=	na(last) ? index + 1 : last
-	_extend	=	na(last) ? extend.right : extend.none
+		_line_level:=	line.new(_index,	level.level,	_last,	level.level,	style = line.style_solid,	extend = _extend, color = color, width = 1)
 
-	_lines.put(_name_level,	line.new(index,	level.level,	_last,	level.level,	style = line.style_solid,	extend = _extend, color = color.new(color, 0), width = 1))
-
-	if not simple
-		_lines.put(_name_low,	line.new(index,	level.low,	_last,	level.low, 		style = line.style_dotted,	extend = _extend, color = color.new(color, 80), width = 1))
-		_lines.put(_name_high,	line.new(index,	level.high,	_last,	level.high,		style = line.style_dotted,	extend = _extend, color = color.new(color, 80), width = 1))
-		_boxes.put(_name_box,	box.new(index, level.high,	_last,	level.low,									extend = _extend, border_color = na, border_width = na, bgcolor = color.new(color, 97.5)))
+		if zone
+			_line_low	:=	line.new(_index,	level.low,	_last,	level.low, 		style = line.style_dotted,	extend = _extend, color = color, width = 1)
+			_line_high	:=	line.new(_index,	level.high,	_last,	level.high,		style = line.style_dotted,	extend = _extend, color = color, width = 1)
+			_box		:=	box.new(_index,		level.high,	_last,	level.low,									extend = _extend, border_color = na, border_width = na, bgcolor = color.new(color, 95))
 
 	true
 
@@ -149,39 +149,6 @@ fibbonachi(Level level, float factor = 0) =>
 
 	_fibb
 
-	//	---		Some string to value utility methods
-
-color_of(string input) =>
-    switch input
-        "aqua"      => color.aqua
-        "blue"      => color.blue
-        "fuchsia"   => color.fuchsia
-        "green"     => color.green
-        "red"       => color.red
-        "lime"      => color.lime
-        "teal"      => color.teal
-        "maroon"    => color.maroon
-        "navy"      => color.navy
-        "yellow"    => color.yellow
-        "purple"    => color.purple
-        "orange"    => color.orange
-        "olive"     => color.olive
-        "white"     => color.white
-        "black"     => color.black
-        =>  color.blue
-
-yloc_of(string input) =>
-    switch input
-        "above"    =>   yloc.abovebar
-        "below"    =>   yloc.belowbar
-        =>  yloc.abovebar
-
-style_yloc_of(string input) =>
-    switch input
-        "above"    =>   label.style_label_down
-        "below"    =>   label.style_label_up
-        =>  label.style_label_down
-
 //  ====================================================================================================================================================
 //      Library: Context
 //  ====================================================================================================================================================
@@ -200,24 +167,6 @@ type Value
 	bool	    _bool
 	float		_float
 	Level		_level
-
-//	@type			Mutator is used to change values of the Context using another const value or value from other Context
-//	@field	target	Name/value/flag
-//	@field	key		Exactly 3 pieces: [state/bar], [context name], [value name]
-//	@field	value	Exactly 1 piece: [value itself] or exactly 3 pieces [state/bar], [context name], [value name]
-type Mutator
-	string				target
-	string[]			key
-	string[]			value
-
-//	@type				Holds simple math equation
-//	@field	left		West side
-//	@field	operator	What to do
-//	@field	righ		East side
-type Math
-	string[]			left
-	string				operator
-	string[]			right
 
 //	@type			Most important piece of this indicator - there are providers of a context, each managing it's internal state; Context is also used as a communication interface between providers and PiPi Script
 //	@field	name	Name of a context, referenced from PiPi Script and providers
@@ -243,11 +192,6 @@ value_create(Level _level)									=>	Value.new(na, na, na, _level)
 value_na(Value value, Value default)						=>	na(value) ? default : value
 value_copy(Value value)										=>	na(value._level) ? value.copy() : value_create(value._level.copy())
 
-	//	---		Math factory methods
-
-math_create(string[] left)									=>	Math.new(left, na, array.new<string>())
-math_create(string[] left, string operator, string[] right)	=>	Math.new(left, operator, right)
-
 	//  ---     Context Factory methods
 
 context_create(string name)									=>  Context.new(name, map.new<string, Value>())
@@ -269,22 +213,6 @@ contexts_context(Contexts contexts, string context) =>
 	_context = contexts.map.contains(context) ? contexts.map.get(context) : context_create(context)
 	contexts.map.put(context, _context)
 	_context
-
-context_copy(Context context) =>
-	Context _context = context_create(context.name)
-
-	for [_k, _v] in context.value
-		_context.value.put(_k, value_copy(_v))
-
-	_context
-
-contexts_copy(Contexts contexts) =>
-	Contexts _contexts = contexts_create()
-
-	for [__name, __context] in contexts.map
-		_contexts.map.put(__name, context_copy(__context))
-
-	_contexts
 
 	//  ---     Context - Setters
 
@@ -377,870 +305,31 @@ contexts_get_float(Contexts contexts, string[] value) =>
 		2 =>	contexts_get_float(contexts, value.get(0), value.get(1))
 		3 =>	contexts_get_float(contexts, value.get(0), value.get(1)) * str.tonumber(value.get(2))
 
-	//  ---     Update contexts from SetValues
-	//          This method could be called manually, but it's primary usecase is setting values
-	//          from SetValue produced by PiPi Script
-
-contexts_mutate(Contexts contexts, Mutator[] mutator) =>
-	//	Run through all values we're about to set
-	for _mutator in mutator
-		//	Key must have exactly 3 elements: scope, context and value
-		if _mutator.key.size() != 2
-			continue
-
-		//	Resolve type we're setting; this code looks ugly (and I don't like it), but PineScript's type
-		//	system does not allow any shortcuts here.
-		//
-		//	In short: same methods, but different types.
-		//
-		//	When value resolver returns "na", it's ignored as an unknown value
-		switch _mutator.target
-            "string" =>
-				_value = contexts_get_string(contexts, _mutator.value)
-
-				if not na(_value)
-					contexts_set(contexts, _mutator.key.get(0), _mutator.key.get(1), _value)
-
-			"bool" =>
-				_value = contexts_get_bool(contexts, _mutator.value)
-
-				if not na(_value)
-					contexts_set(contexts, _mutator.key.get(0), _mutator.key.get(1), _value)
-
-			"float" =>
-				_value = contexts_get_float(contexts, _mutator.value)
-
-				if not na(_value)
-					contexts_set(contexts, _mutator.key.get(0), _mutator.key.get(1), _value)
-
-	true
-
-//	@function	Simple math support on the contexts
-contexts_math(Contexts contexts, Math value) =>
-	_left	=	contexts_get_float(contexts,    value.left)
-	_right	=	contexts_get_float(contexts,    value.right)
-
-	if na(_right)
-		_left
-	else
-		switch value.operator
-			"+" => _left + _right
-			"-" => _left - _right
-			"*" => _left * _right
-			"/" => _left / _right
-			=> na
-
-	//  ---     Context Counter support
-
-context_counter(Context context, string name, float value)						=>	context_set(context, name, na(value) ? 0 : context_get_float(context, name, 0) + value)
-contexts_counter(Contexts contexts, string context, string name, float value)	=>	context_counter(context(contexts.map.get(context), context_create(name)), name, value)
-
-//  ====================================================================================================================================================
-//      Library: Pattern
-//  ====================================================================================================================================================
-
-	//  ====================================================================================================================================================
-	//      Types
-	//  ====================================================================================================================================================
-
-// //	@type				Candle rule to match exactly one value/state/whatever
-// //	@field	target		Name/flag/value
-// //	@field	left		Where to get left side of the check; may be 1 (single value) or 2 (context access) pieces
-// //	@field	operator	What to say...
-// //	@field	right		Where to get right side of the check; may be 1 (single value) or 2 (context access) pieces
-// type Rule
-// 	string		target
-// 	string[]	left
-// 	string		operator
-// 	string[]	right
-
-// //	@type				Rules on a single Candle
-// //  @field  stop        True - when rules of this candle are true, this candle breaks pattern matching
-// //	@field	rule		Rules to check
-// type Candle
-//     bool		stop
-// 	Rule[]		rule
-
-// 	//	---		Factory methods
-
-// rule_create(string target, string[] left, string operator, string[] right)	=>	Rule.new(target, left, operator, right)
-// candle_create()																=>  Candle.new(false, array.new<Rule>())
-
-// 	//  ====================================================================================================================================================
-// 	//      Pattern matching
-// 	//  ====================================================================================================================================================
-
-// match(Contexts contexts, Rule rule) =>
-// 	switch rule.target
-// 		"bool"	=>
-// 			_left	=	contexts_get_bool(contexts, rule.left)
-// 			_right	=	contexts_get_bool(contexts, rule.right)
-
-// 			_left	==	_right
-
-// 		"float"	=>
-// 			_left	=	contexts_get_float(contexts,    rule.left)
-// 			_right	=	contexts_get_float(contexts,    rule.right)
-
-//             // log.info("Rule broken [{0}] [{1} ({2})] [{3}] [{4} ({5})]", rule.target, rule.key, _left, rule.operator, rule.value, _right)
-
-//             switch rule.operator
-// 				">"		=> _left >	_right
-// 				">="	=> _left >= _right
-// 				"<"		=> _left <	_right
-// 				"<="	=> _left <=	_right
-// 				"=="	=> _left ==	_right
-// 				"!="	=> _left !=	_right
-
-// 		=> true
-
-// match(Contexts contexts, Candle candle) =>
-// 	bool _result = true
-
-// 	for __rule in candle.rule
-//         _match  =  match(contexts, __rule)
-
-//         if candle.stop
-//             if _match
-//                 _result:=   false
-//                 break
-//             continue
-
-// 		if not _match
-// 			_result:= false
-// 			break
-
-// 	_result
-
-// //  ====================================================================================================================================================
-// //      Library: Script
-// //			This part is responsible for a script execution
-// //  ====================================================================================================================================================
-
-// 	//  ====================================================================================================================================================
-// 	//      Types
-// 	//  ====================================================================================================================================================
-
-// //	@type				Match tracking of the given pattern
-// //	@field	strict		Matching mode: strict - consecutive candles must match; non-strict, candles are checked continually
-// //	@field	priority	When multiple matches win, one with highest priority will be executed
-// //	@field	pattern		Array index of pattern (in script, or whatever is used to store patterns) this match belongs to
-// //	@field	rule		Index to current pattern rule
-// //	@field	count		Count of successfull matches
-// //	@field	length		Current match "runtime" - number of bars check runs
-// //	@field	track		Track current state of match; if this one falls "false", pattern matching failed and this Match should reset
-// //	@field	match		Match status; if true, pattern's action should be executed + this state reset
-// type Match
-// 	bool	strict
-// 	float	priority
-// 	int		pattern
-// 	int		rule
-// 	int		count
-// 	int		length
-// 	bool	track
-// 	bool	match
-
-// //  @type               Action can create a mark (label)
-// //  @field  title       Text to display
-// //  @field  color       Mark color
-// type Mark
-//     string              title
-//     string              hint
-//     string              color
-//     string              text_color
-//     string              position
-
-// //	@type				When a pattern matches, execute an action
-// //	@field	mutator	Set values
-// //	@field	profit		Set profit (does not execute a trade)
-// //	@field	loss		Set loss (does not execute a trade)
-// //	@field	order		> 0, long, < 0 short, everything else - nothing
-// //  @field  mark        Action may display mark (label)
-// type Action
-// 	string				hint
-// 	Mutator[]			mutator
-// 	Math				profit
-// 	Math				loss
-//     string[]            size
-// 	int					order
-// 	bool				close
-//     Mark                mark
-
-// //	@type				Pattern used to match multiple candles
-// //	@field	priority	Higher pattern priority wins, when there are multiple winning Patterns
-// //	@field	strict		Strict means all candles must be next to each other; non-strict - pattern is checked on the fly, last matching candle commits true
-// //	@field	length		When non-strict pattern is enabled, length defines how many bars to wait to finish a pattern before pattern is considered broken
-// //	@field	enabled		Feature for the user to enable/disable pattern when trying different appraches
-// //	@field	pass		If true, pattern will not break, thus continuing to the next matching pattern in a row
-// //	@field	candle		Array of candle rules
-// //	@field	action		Action being taken when pattern is matched
-// type Pattern
-// 	string				name
-// 	int					priority
-// 	bool				strict
-// 	int					length
-// 	bool				enabled
-// 	bool				pass
-// 	Candle[]			candle
-// 	Action				action
-
-// //	@type				Startup part of the script
-// //	@field	set_value	Those values will be set into the context(s)
-// type Init
-// 	int					priority
-// 	bool				long
-// 	bool				short
-// 	Mutator[]			mutator
-
-// //	@type				All the candle matching stuff
-// //	@field	init		Startup part of script; should be called *exactly* once
-// //	@field	pattern		Patterns used to match candles
-// type Script
-// 	Init				init
-// 	Pattern[]			pattern
-
-// 	//	---		Factory methods
-
-// match_create(bool strict, float priority, int pattern)		=>	Match.new(strict, priority, pattern, 0, 0, 0, false, na)
-// mark_create()												=>  Mark.new(na, na, "blue", "white", "above")
-// action_create()												=>  Action.new(na, array.new<Mutator>(), na, na, array.from("2"), 0, false, na)
-// pattern_create()											=>  Pattern.new(na, 0, false, 10, true, false, array.new<Candle>(), action_create())
-// init_create()												=>  Init.new(0, true, true, array.new<Mutator>())
-// script_create()												=>  Script.new(init_create(), array.new<Pattern>())
-
-// 	//  ====================================================================================================================================================
-// 	//      Utils
-// 	//  ====================================================================================================================================================
-
-// match_reset(Match match)	=>
-// 	match.rule:=	0
-// 	match.count:=	0
-// 	match.length:=	0
-// 	match.track:=	false
-// 	match.match:=	na
-
-// 	//  ====================================================================================================================================================
-// 	//      Individual handlers
-// 	//  ====================================================================================================================================================
-
-// //	@function	Runs initialization part of a script
-// eval_init(Contexts contexts, Script script) =>
-// 	contexts_mutate(contexts, script.init.mutator)
-
-// //  ---     Script: Action - Order Entry
-// //          This is internal function handling TradingView Strategy Tester entries
-
-// //	@function	This function executes a trade, if it's specified in the action
-// // eval_trade(Contexts contexts, Init init, Pattern pattern) =>
-// // 	var box	_box	=	na
-// //     Action  _action =   pattern.action
-// //     string  _hint   =   na(_action.hint) ? pattern.name : _action.hint
-
-// // 	if _action.order != 0
-// // 		_is_session	=	contexts_get_bool(contexts, "session", "open", true)
-// // 		_profit		=	na(_action.profit)	? na : contexts_math(contexts,  _action.profit)
-// // 		_loss		=	na(_action.loss)	? na : contexts_math(contexts,  _action.loss)
-// //         _size       =   contexts_get_float(contexts, _action.size)
-
-// // 		if _is_session and not bool(strategy.position_size)
-// // 			_entry = false
-// // 			_hint_profit	= na(_hint) ? "TP" : _hint + ": TP"
-// // 			_hint_loss		= na(_hint) ? "SL" : _hint + ": SL"
-
-// // 			if _action.order > 0 and init.long
-// // 				_entry:= true
-// // 				strategy.entry("long", direction = strategy.long, comment = _hint, qty = _size)
-// // 				strategy.exit("long-limit",  from_entry = "long", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
-// // 			else if _action.order < 0 and init.short
-// // 				_entry:= true
-// // 				strategy.entry("short", direction = strategy.short, comment = _hint, qty = _size)
-// // 				strategy.exit("short-limit",  from_entry = "short", limit = _profit, stop = _loss, comment_loss = _hint_loss, comment_profit = _hint_profit)
-
-// // 			if _entry
-// // 				contexts_set(contexts,	"trade", "entry",	true)
-
-// //                 contexts_set(contexts,	"ctx",  "buy",      _action.order > 0)
-// // 				contexts_set(contexts,	"ctx",  "sell",     _action.order < 0)
-
-// // 				contexts_set(contexts,	"trade", "long",	_action.order > 0)
-// // 				contexts_set(contexts,	"trade", "short",	_action.order < 0)
-// // 				contexts_set(contexts,	"trade", "profit",	_profit)
-// // 				contexts_set(contexts,	"trade", "loss",	_loss)
-
-// // 				//	Reset trade length to zero
-// // 				contexts_counter(contexts,	"trade", "length",	na)
-
-// // 				alert(_hint)
-
-// // 	if bool(strategy.position_size) and _action.close
-// // 		contexts_set(contexts,	"trade", "closed",	true)
-// // 		strategy.close_all("CBA")
-
-// patterns_sort(Pattern[] patterns) =>
-// 	if patterns.size() > 1
-// 		for i = 0 to patterns.size() - 2
-// 			for j = i + 1 to patterns.size() - 1
-// 				if patterns.get(i).priority < patterns.get(j).priority
-// 					temp = patterns.get(i)
-// 					patterns.set(i, patterns.get(j))
-// 					patterns.set(j, temp)
-
-// //	@function			Handles pattern detection; it tracks pattern state during individual bars for low resource usage
-// //	@param	contexts	Contexts used for evaluation
-// //	@param	patterns	Patterns you want to track and detect
-// eval_pattern(Contexts contexts, Init init, Pattern[] patterns) =>
-// 	var Match[]		_matches	=	array.new<Match>()
-// 	Pattern[]		_patterns	=	array.new<Pattern>()
-
-// 	if use_init()
-// 		//	Prepare array of matches with default state; this must be run only once on the first bar
-// 		for __index = 0 to (patterns.size() == 0 ? na : patterns.size() - 1)
-// 			__pattern	=	patterns.get(__index)
-// 			if __pattern.enabled and __pattern.priority >= init.priority
-// 				_matches.push(match_create(__pattern.strict, __pattern.priority, __index))
-
-// 	for __match in _matches
-// 		__pattern	=	patterns.get(__match.pattern)
-// 		__rule		=	__pattern.candle.get(__match.rule)
-
-// 		if match(contexts, __rule)
-// 			__match.count	+=	1
-// 			__match.track	:=	true
-// 			if not __match.strict
-// 				__match.rule	+=	1
-
-// 		else if __match.strict
-// 			__match.track:=		false
-// 			__match.match:=		false
-
-// 		if __match.strict
-// 			__match.rule	+=	1
-
-// 		__match.length	+=	1
-
-// 		if __match.rule >= __pattern.candle.size()
-// 			__match.match:=		__match.track
-
-// 		if not __match.strict
-// 			if __match.count >= __pattern.candle.size()
-// 				__match.match:=		true
-
-// 			if __match.length >= __pattern.length
-// 				__match.match:=	__match.track and __match.count >= __pattern.candle.size()
-
-// 	for __match in _matches
-// 		if __match.match
-// 			_patterns.push(patterns.get(__match.pattern))
-
-// 			match_reset(__match)
-
-// 		if not na(__match.match) and not __match.match
-// 			match_reset(__match)
-
-// 	patterns_sort(_patterns)
-
-// 	_patterns
-
-// eval_mark(Mark mark) =>
-// 	if not na(mark)
-// 		label.new(bar_index,
-//          high,
-//          xloc		= xloc.bar_index,
-//          style		= style_yloc_of(mark.position),
-//          yloc		= yloc_of(mark.position),
-//          text		= mark.title,
-//          tooltip	= mark.hint,
-//          textcolor	= color_of(mark.text_color),
-//          color		= color_of(mark.color)
-//          )
-
-// eval_action(Contexts contexts, Init init, Pattern[] patterns) =>
-// 	for __pattern in patterns
-// 		contexts_mutate	(contexts, __pattern.action.mutator)
-// 		// eval_trade			(contexts, init, __pattern)
-// 		eval_mark			(__pattern.action.mark)
-// 		if not __pattern.pass
-// 			break
-
-// 	patterns
-
-// //	@function				Runs the scrpt, tracks patterns per-bar, and do whatever a script should do, yaay!
-// //	@param		contexts	Current contexts from all provides script may access
-// //	@param		script		Script itself; doesn't matter, where it comes from
-// eval(Contexts contexts, Script script) =>
-// 	// Reset default states
-// 	contexts_set(contexts,	"trade", "entry",	false)
-// 	contexts_set(contexts,	"ctx",  "buy",      false)
-// 	contexts_set(contexts,	"ctx",  "sell",     false)
-
-// 	eval_action(contexts, script.init, eval_pattern(contexts, script.init, script.pattern))
-
-// 	script
-
-// //  ====================================================================================================================================================
-// //      Library: Parser
-// //			Because PineScript has very strange behavior of imported libraries (same code works here, but not from the lib), I've to
-// //			keep all the stuff here. Maybe it's better.
-// //  ====================================================================================================================================================
-
-// 	//  ====================================================================================================================================================
-// 	//      Individual parsers
-// 	//          If want learn PiPi something new, here are parsers it uses.
-// 	//  ====================================================================================================================================================
-
-// 	//  --- Parse: Key
-// 	//      Resolve key in general: it detects contexts access or (const) value
-
-// parse_key(string line) =>
-// 	string[]	_key = array.from(line)
-
-// 	if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)$"))
-// 		_context	=	str.substring(line, 1, str.pos(line, "."))
-// 		_name		=	str.substring(line, str.pos(line, ".") + 1)
-// 		_key		:=	array.from(_context, _name)
-
-// 	else if not na(str.match(line, "^\\$([a-zA-Z0-9#_-]+).([a-zA-Z0-9.-]+)(\(.*?\))$"))
-// 		_context	=	str.substring(line, 1, str.pos(line, "."))
-// 		_name		=	str.substring(line, str.pos(line, ".") + 1, str.pos(line, "("))
-// 		_key		:=	array.from(_context, _name, str.substring(line, str.pos(line, "(") + 1, str.pos(line, ")")))
-
-// 	_key
-
-// 	//  --- Parse: Init
-// 	//      Gateway for "init" part of the script
-
-// parse_init(string[] stack, string line, Init init) =>
-// 	_text	=	str.split(line,	"\t")
-
-// 	switch _text.get(0)
-// 		"priority"	=>
-// 			if _text.size() == 2
-// 				init.priority:=		int(str.tonumber(_text.get(1)))
-// 		"long"		=>
-// 			if _text.size() == 2
-// 				switch _text.get(1)
-// 					"true"	=> init.long:=	true
-// 					"false"	=> init.long:=	false
-// 					=>	init.long:=	true
-// 		"short"		=>
-// 			if _text.size() == 2
-// 				switch _text.get(1)
-// 					"true"	=> init.short:=	true
-// 					"false"	=> init.short:=	false
-// 					=>	init.short:=	true
-// 		"set"		=>	stack.push("parse_set")
-
-// 	init
-
-// 	//  --- Parse: Set
-// 	//      Resolves individual "set" values
-
-// parse_set(string line, Mutator[] mutator) =>
-// 	string[] _set = str.split(line, "\t")
-// 	if _set.size() == 3
-// 		mutator.push(Mutator.new(_set.get(0), parse_key(_set.get(1)), parse_key(_set.get(2))))
-
-// 	//  --- Parse: Pattern
-// 	//      Pattern section gateway; this parses everything related to "pattern" section
-
-// parse_pattern(string[] stack, string line, Pattern pattern) =>
-// 	_text = str.split(line, "\t")
-
-// 	switch _text.get(0)
-// 		"name"		=>	pattern.name		:=	_text.size() == 2 ? _text.get(1) : na
-// 		"pass"		=>	pattern.pass		:=	true
-// 		"strict"	=>	pattern.strict		:=	true
-// 		"priority"	=>	pattern.priority	:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : 0
-// 		"length"	=>	pattern.length		:=	_text.size() == 2 ? int(str.tonumber(_text.get(1))) : pattern.length
-// 		"!strict"	=>	pattern.strict		:=	false
-// 		"disabled"	=>	pattern.enabled		:=	false
-// 		"candle"	=>	stack.push("parse_pattern_candle")
-// 		"action"	=>	stack.push("parse_action")
-
-// 	pattern
-
-// 	//  --- Parse: Pattern -> Candle -> Flag
-// 	//      Resolve candle condition for flags (bool values)
-
-// parse_pattern_candle_bool(string[] rule, bool flag, Candle candle) =>
-// 	_key = parse_key(rule.get(0))
-// 	if _key.size() == 2
-// 		candle.rule.push(rule_create("bool", _key, "=", array.from(flag ? "true" : "false")))
-
-// 	//  --- Parse: Pattern -> Candle -> Value
-// 	//      Resolve candle condition using value comparison
-
-// parse_pattern_candle_float(string[] rule, Candle candle) =>
-// 	if rule.size() == 3
-// 		candle.rule.push(rule_create("float", parse_key(rule.get(0)), rule.get(1), parse_key(rule.get(2))))
-
-// 	//  --- Parse: Pattern -> Candle
-// 	//      Candle parsing gateway (resolves candle rules and everything related to candle section parsing)
-
-// parse_pattern_candle(string line, Candle candle) =>
-// 	_rule = str.split(line, "\t")
-// 	log.info("parse_pattern_candle: {0}", _rule)
-
-// 	switch _rule.get(0)
-//         "break"     =>
-//             candle.stop:=   true
-// 		"bool"		=>
-// 			_rule.shift()
-// 			parse_pattern_candle_bool(_rule, true, candle)
-
-// 		"!bool"		=>
-// 			_rule.shift()
-// 			parse_pattern_candle_bool(_rule, false, candle)
-
-// 		"float"		=>
-// 			_rule.shift()
-// 			parse_pattern_candle_float(_rule, candle)
-
-// 	candle
-
-// 	//  --- Parse: Pattern -> Action -> [Profit | Loss]
-// 	//      Resolves action for setting profit/loss
-
-// parse_action_profit_loss(string[] source, Action action) =>
-// 	_type = source.shift()
-
-// 	switch source.size()
-// 		1 =>
-// 			_value	=	parse_key(source.get(0))
-// 			switch _type
-// 				"profit"	=>	action.profit	:=	math_create(_value)
-// 				"loss"		=>	action.loss		:=	math_create(_value)
-
-// 		3 =>
-// 			_left		=	parse_key(source.get(0))
-// 			_operator	=	source.get(1)
-// 			_right		=	parse_key(source.get(2))
-// 			switch _type
-// 				"profit"	=>	action.profit	:=	math_create(_left, _operator, _right)
-// 				"loss"		=>	action.loss		:=	math_create(_left, _operator, _right)
-
-// 	action
-
-
-// parse_action_mark(string line, Mark mark) =>
-//     _line   =   str.split(line, "\t")
-
-//     switch  _line.get(0)
-//         "text"  =>
-//             if _line.size() == 2
-//                 mark.title:=    _line.get(1)
-
-//         "color"  =>
-//             if _line.size() == 2
-//                 mark.color:=    _line.get(1)
-
-//         "text-color"  =>
-//             if _line.size() == 2
-//                 mark.text_color:=   _line.get(1)
-
-//         "hint"  =>
-//             if _line.size() == 2
-//                 mark.hint:=   _line.get(1)
-
-//         "position"  =>
-//             if _line.size() == 2
-//                 mark.position:=   _line.get(1)
-
-//     mark
-
-// 	//  --- Parse: Pattern -> Action
-// 	//      Gateway for all supported actions in the script
-
-// parse_action(string[] stack, string line, Action action) =>
-// 	_action	=	str.split(line, "\t")
-
-// 	switch _action.get(0)
-// 		"hint"				=>	action.hint:=	_action.size() == 2 ? _action.get(1) : na
-// 		"set"				=>	stack.push("parse_set")
-//         "mark"				=>	stack.push("parse_action_mark")
-// 		"profit"			=>	parse_action_profit_loss(_action, action)
-// 		"loss"				=>	parse_action_profit_loss(_action, action)
-//         "size"              =>
-//             if _action.size() == 2
-//                 action.size     :=  parse_key(_action.get(1))
-// 		"long"				=>	action.order	:=	1
-// 		"short"				=>	action.order	:=	-1
-// 		"close"				=>	action.close	:=	true
-
-// 	action
-
-// 	//  ====================================================================================================================================================
-// 	//      Script Parser
-// 	//  ====================================================================================================================================================
-
-// 	//  --- Main script parser
-// 	//      PiPi Script (parts of script) goes here and parser produces a script, which could be executed
-
-// parse(string[] script) =>
-// 	Script				_script		=	script_create()
-// 	Mutator[]			_mutator	=	na
-// 	Action				_action		=	na
-// 	Pattern				_pattern	=	na
-// 	Candle				_candle		=	na
-// 	string[]			_stack		=	array.new<string>()
-
-// 	for __source in script
-// 		_source		=	str.split(str.trim(__source), "\n")
-
-// 		for _line in _source
-// 			_text = str.trim(_line)
-
-// 			if str.startswith(_text, '//') or str.length(_text) == 0
-// 				continue
-
-// 			switch _text
-// 				"init" =>
-// 					_mutator:=	_script.init.mutator
-// 					_stack.push("parse_init")
-// 					continue
-
-// 				"pattern" =>
-// 					_pattern	:=	pattern_create()
-// 					_action		:=	_pattern.action
-// 					_script.pattern.push(_pattern)
-// 					_stack.push("parse_pattern")
-// 					continue
-
-// 				"candle" =>
-// 					_candle:=	candle_create()
-// 					_pattern.candle.push(_candle)
-
-// 				"action" =>
-// 					_mutator:=	_pattern.action.mutator
-
-//                 "mark" =>
-//                     _action.mark:=  mark_create()
-
-// 				";"	=>
-// 					_stack.pop()
-// 					continue
-
-// 			if _stack.size() > 0
-// 				switch _stack.last()
-// 					"parse_init" =>
-// 						parse_init(_stack, _text, _script.init)
-
-// 					"parse_set" =>
-// 						parse_set(_text, _mutator)
-
-// 					"parse_pattern" =>
-// 						parse_pattern(_stack, _text, _pattern)
-
-// 					"parse_pattern_candle" =>
-// 						parse_pattern_candle(_text, _candle)
-
-// 					"parse_action" =>
-// 						parse_action(_stack, _text, _action)
-
-//                     "parse_action_mark" =>
-// 						parse_action_mark(_text, _action.mark)
-
-// 	log.info("=== Init")
-
-// 	for _v in _script.init.mutator
-// 		log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
-
-// 	for __pattern in _script.pattern
-// 		log.info("=== Pattern [{0} - {1}]", na(__pattern.name) ? " - na - " : __pattern.name, __pattern.strict ? "strict" : "non-strict")
-
-// 		for __candle in __pattern.candle
-// 			log.info("== Candle [{0}]", __candle.stop ? "Breaker" : "Common")
-// 			for __rule in __candle.rule
-// 				log.info("- Rule [{0}] {1} {2} {3}", __rule.target, __rule.left, __rule.operator, __rule.right)
-
-// 		log.info("== Action")
-// 		for _v in __pattern.action.mutator
-// 			log.info("- Set [{0}] -> {1} = {2}", _v.target, _v.key, _v.value)
-
-// 		if not na(__pattern.action.profit)
-// 			log.info("- Profit: {0} [{1}] {2}", __pattern.action.profit.left, __pattern.action.profit.operator, __pattern.action.profit.right)
-
-// 		if not na(__pattern.action.loss)
-// 			log.info("- Loss: {0} [{1}] {2}", __pattern.action.loss.left, __pattern.action.loss.operator, __pattern.action.loss.right)
-
-// 		if __pattern.action.order > 0
-// 			log.info("-	Long")
-
-// 		if __pattern.action.order < 0
-// 			log.info("-	Short")
-
-//         if not na(__pattern.action.mark)
-//             log.info("Mark [{0}], color [{1}]", __pattern.action.mark.title, __pattern.action.mark.color)
-
-//         log.info("-	Position size {0}", __pattern.action.size)
-
-// 		if __pattern.action.close
-// 			log.info("-	Close")
-
-// 	_script
-
 //  ====================================================================================================================================================
 //      Library: source
 //			Here are all sources (contexts providers) for PiPi
 //  ====================================================================================================================================================
 
 	//  ====================================================================================================================================================
-	//      Default global values
-	//			-	here should be all defaults for all indicators currently supported (so if you modify this script, your default should be here).
-	//  ====================================================================================================================================================
-
-use_defaults(Contexts contexts) =>
-	var Context	_context	=	context_create("ctx")
-
-	if use_init()
-		context_set(_context,	"factor",				    0.1)
-
-        context_set(_context,	"session.time",             "1000-2200")
-        context_set(_context,	"session.exclusive",        true)
-
-		context_set(_context,	"structure.length",		    20)
-		context_set(_context,	"structure.deviation",	    0)
-
-        context_set(_context,	"cci.length",               7)
-
-        context_set(_context,	"macd2.length",		        34)
-        context_set(_context,	"macd2.signal",		        9)
-        context_set(_context,	"macd2.impulse",            3)
-        context_set(_context,	"macd2.dmz",                6.6)
-        context_set(_context,	"macd2.flat",               0.1)
-
-        context_set(_context,	"ema.length-1",             4)
-        context_set(_context,	"ema.length-2",             8)
-        context_set(_context,	"ema.length-3",             12)
-		context_set(_context,	"ema.length-4",             16)
-        context_set(_context,	"ema.length-5",             20)
-        context_set(_context,	"ema.length-6",             24)
-
-		context_set(_context,	"trends.factor",		    0.2)
-		context_set(_context,	"trends.touches",		    3)
-		context_set(_context,	"trends.count",			    3)
-		context_set(_context,	"trends.trend",			    3)
-
-        context_set(_context,	"super-trend.fast-length",  7)
-        context_set(_context,	"super-trend.fast-factor",  1)
-        context_set(_context,	"super-trend.slow-length",  20)
-        context_set(_context,	"super-trend.slow-factor",  5)
-
-		context_set(_context,	"atr-signal.length",		20)
-		context_set(_context,	"atr-signal.factor",		3)
-
-	//	Reset default global flags
-	context_set(_context,	"buy",	false)
-	context_set(_context,	"sell",	false)
-
-	use_context(contexts, _context)
-
-	//  ====================================================================================================================================================
-	//      Candle source provider
-	//  ====================================================================================================================================================
-
-	//  ---     Candle values and simple candle analysis
-	//          This function provides common candle information plus some additional structural info
-
-use_candle(Contexts contexts) =>
-	var Context	_context	=	context_create("candle")
-
-	_is_green	=	open	<= close
-	_is_red		=	open	> close
-	_low		=	math.min(open, close)
-	_high		=	math.max(open, close)
-	_body		=	_high - _low
-
-	context_set(_context, "index",			bar_index)
-	context_set(_context, "green",			_is_green)
-	context_set(_context, "red",			_is_red)
-	context_set(_context, "bull-engulfing",	_is_green	and	high	> high[1]	and (_body > _body[1]))
-	context_set(_context, "bear-engulfing",	_is_red		and	low		> low[1]	and	(_body > _body[1]))
-
-	context_set(_context, "open-gt-open",	open	> open[1])
-	context_set(_context, "high-gt-high",	high	> high[1])
-	context_set(_context, "low-gt-low",		low		> low[1])
-	context_set(_context, "close-gt-close",	close	> close[1])
-
-	context_set(_context, "open-lt-open",	open	< open[1])
-	context_set(_context, "high-lt-high",	high	< high[1])
-	context_set(_context, "low-lt-low",		low		< low[1])
-	context_set(_context, "close-lt-close",	close	< close[1])
-
-	context_set(_context, "body-gt-body",	_body > _body[1])
-	context_set(_context, "body-lt-body",	_body < _body[1])
-
-	context_set(_context, "up",				_low > _low[1])
-	context_set(_context, "down",			_low < _low[1])
-
-	context_set(_context, "open",			open)
-	context_set(_context, "high",			high)
-	context_set(_context, "low",			low)
-	context_set(_context, "close",			close)
-	context_set(_context, "size",			_body)
-	context_set(_context, "length",			high - low)
-
-	context_set(_context, "bottom",			_low)
-	context_set(_context, "top",			_high)
-
-	use_context(contexts, _context)
-
-	//  ---     Current candle Levels
-	//          Some indicators exports levels and this method provides some basic flags related to the Level and Candle
-
-use_candle_levels(Contexts contexts) =>
-	const string	_separator	=	"."
-	Context		_context	=	contexts.map.get("candle")
-
-	for [__name, __context] in contexts.map
-		for [__name2, __value] in __context.value
-			if not na(__value._level)
-				_level	=	__value._level
-				_key	=	__name + _separator + __name2
-
-				//	--	Precomputed flags; a lot of stuff may be used by hand, it's just more talkative
-				context_set(_context, _key + _separator + "above",			open 	> _level.high 	and close 	> _level.high)
-				context_set(_context, _key + _separator + "below",			open 	< _level.low 	and close 	< _level.low)
-
-				context_set(_context, _key + _separator + "inside-open",	level_inside(_level, open))
-				context_set(_context, _key + _separator + "inside-high",	level_inside(_level, high))
-				context_set(_context, _key + _separator + "inside-low",		level_inside(_level, low))
-				context_set(_context, _key + _separator + "inside-close",	level_inside(_level, close))
-
-				context_set(_context, _key + _separator + "body-over",		math.min(open, close)	< _level.low 	and math.max(open, close) 	> _level.high)
-				context_set(_context, _key + _separator + "body-inside",	math.min(open, close)	> _level.low 	and math.max(open, close) 	< _level.high)
-				context_set(_context, _key + _separator + "wicks-over",		low						< _level.low 	and high 					> _level.high)
-
-	//  ====================================================================================================================================================
 	//      Day-Low-High provider
 	//  ====================================================================================================================================================
-
-//	@function	DRY, bro
-factor(Contexts contexts, Level level) =>
-	(level.size * (contexts_get_float(contexts, "ctx", "factor") / 10)) / 2
 
 //	@function	Manages context of current Day Low/High and related events
 use_day(Contexts contexts) =>
 	var Context		_context	=	context_create("day")
 	var	Level		_level		=	level_create("day", low, high)
 
-	if use_init()
-		context_set(_context, "level",	_level)
-		context_set(_context, "factor",	factor(contexts, _level))
-
 	context_set(_context, "change",			false)
 	context_set(_context, "new-day",		false)
 	context_set(_context, "higher-high",	false)
 	context_set(_context, "lower-low",		false)
+	context_set(_context, "level",			_level)
 
 	if bool(ta.change(time('D')))
 		level_low_high(_level, low, high)
 
 		context_set(_context, "change",			true)
 		context_set(_context, "new-day",		true)
-
-		context_set(_context, "factor",			factor(contexts, _level))
-		context_set(_context, "size",			_level.size)
 		context_set(_context, "level",			_level)
 
 	else if low < _level.low
@@ -1248,9 +337,6 @@ use_day(Contexts contexts) =>
 
 		context_set(_context, "change",			true)
 		context_set(_context, "lower-low",		true)
-
-		context_set(_context, "factor",			factor(contexts, _level))
-		context_set(_context, "size",			_level.size)
 		context_set(_context, "level", 			_level)
 
 	else if high > _level.high
@@ -1258,9 +344,6 @@ use_day(Contexts contexts) =>
 
 		context_set(_context, "change",			true)
 		context_set(_context, "higher-high",	true)
-
-		context_set(_context, "factor",			factor(contexts, _level))
-		context_set(_context, "size",			_level.size)
 		context_set(_context, "level",			_level)
 
 	use_context(contexts, _context)
@@ -1270,10 +353,10 @@ use_day(Contexts contexts) =>
 	//  ====================================================================================================================================================
 
 //	@function	Listens for changes of Day Low/High and adjusts Fibbonachi levels accordingly
-use_day_fibbonachi(Contexts contexts) =>
+use_day_fibbonachi(Contexts contexts, float factor) =>
 	var Context	_context	=	context_create("day-fibbonachi")
 	Level		_level		=	contexts_get_level(contexts, "day", "level")
-	float		_factor		=	contexts_get_float(contexts, "day", "factor", 0)
+	float		_factor		=	_level.size * (factor / 10)
 
 	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
@@ -1282,21 +365,6 @@ use_day_fibbonachi(Contexts contexts) =>
 	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
 	if contexts_get_bool(contexts, "day", "change")
 		context_set(_context, fibbonachi(_level, _factor))
-
-	use_context(contexts, _context)
-
-	//  ====================================================================================================================================================
-	//      Session range
-	//  ====================================================================================================================================================
-
-use_session(Contexts contexts, string time) =>
-	var Context		_context	=	context_create("session")
-	var bool		_exclusive	=	contexts_get_bool(contexts,     "ctx",	"session.exclusive",	true)
-	bool			_is_session	=	_exclusive ? bool(time(timeframe.period, time)) : true
-
-	context_set(_context, "open", 			_is_session)
-	context_set(_context, "is-open", 		_is_session and not _is_session[1])
-	context_set(_context, "is-close", 	not	_is_session and		_is_session[1])
 
 	use_context(contexts, _context)
 
@@ -1426,43 +494,6 @@ use_macd(Contexts contexts, simple int fast, simple int slow, simple int signal)
 	use_context(contexts, _context)
 
 	//  ====================================================================================================================================================
-	//      Trader syncs TradingView Strategy Management with internal PiPi state
-	//  ====================================================================================================================================================
-
-// use_trader(Contexts contexts) =>
-// 	if use_init()
-// 		contexts_set(		contexts,	"trade",	"exit",		false)
-// 		contexts_set(		contexts,	"trade",	"closed",	false)
-
-// 		contexts_set(		contexts,	"trade",	"long",		false)
-// 		contexts_set(		contexts,	"trade",	"short",	false)
-// 		contexts_set(		contexts,	"trade",	"profit",	na)
-// 		contexts_set(		contexts,	"trade",	"loss",		na)
-// 		contexts_set(		contexts,	"trade",	"pnl",		na)
-
-// 		contexts_counter(	contexts,	"trade",	"length",	na)
-
-// 	//	Check, if we've closed a trade, this handles also trades opened and closed on the same candle
-// 	if strategy.closedtrades > strategy.closedtrades[1]
-// 		contexts_set(		contexts,	"trade",	"exit",	true)
-
-// 		contexts_set(		contexts,	"trade",	"long",		false)
-// 		contexts_set(		contexts,	"trade",	"short",	false)
-// 		contexts_set(		contexts,	"trade",	"profit",	na)
-// 		contexts_set(		contexts,	"trade",	"loss",		na)
-// 		contexts_set(		contexts,	"trade",	"pnl",		na)
-
-// 		contexts_counter(	contexts,	"trade",	"length",	na)
-
-// 	//	If there is still open position, count the trasde; here we don't care, if the trade was closed on the same candle,
-// 	//	because it's handled properly by previous block
-// 	if bool(strategy.position_size)
-// 		contexts_set(		contexts,	"trade", 	"pnl",		strategy.openprofit)
-// 		contexts_counter(	contexts,	"trade",	"length",	1)
-
-// 	true
-
-	//  ====================================================================================================================================================
 	//      Improved SuperTrend
 	//  ====================================================================================================================================================
 
@@ -1492,246 +523,13 @@ use_super_trend2(Contexts contexts, simple int length, simple float multiple) =>
 	use_context(contexts, _context)
 
 	//  ====================================================================================================================================================
-	//      Simple Buy/Sell signals
-	//  ====================================================================================================================================================
-
-use_atr_signal(Contexts contexts, simple int length, float factor) =>
-	var Context		_context		=	context_create("atr-signal")
-
-	_source		=	close
-    _signal     = 	ta.atr(length)
-    _factor     = 	factor * _signal
-
-    _ema        = ta.ema(_source, 1)
-    _trailing   = 0.0
-    _trailing   := _source > nz(_trailing[1], 0) and _source[1] > nz(_trailing[1], 0) ? math.max(nz(_trailing[1]), _source - _factor) : _source < nz(_trailing[1], 0) and _source[1] < nz(_trailing[1], 0) ? math.min(nz(_trailing[1]), _source + _factor) : _source > nz(_trailing[1], 0) ? _source - _factor : _source + _factor
-
-	context_set(_context, "buy",	_source > _trailing and ta.crossover(_ema, _trailing))
-	context_set(_context, "sell",	_source < _trailing and ta.crossover(_trailing, _ema))
-
-	use_context(contexts, _context)
-
-	//  ====================================================================================================================================================
 	//      Simple Structure and POI detection
 	//			This indicator tries to find interesting points, where a lot of candles "meet", potentially showing lows/highs/supports/resistances based
 	//			on candles in the given line/zone.
 	//  ====================================================================================================================================================
 
-type Touch
-	Level	level
-	int		count
-	int[]	index
-
-//	@type			Track candle structures
-//	@field	high	Top (max open/close) of tracked candle
-//	@field	low		Low (min open/close) of tracked candle
-type Structure
-	Touch	low
-	Touch	high
-
-touch_create(string name, float level, float size)	=>	Touch.new(level_size(name, level, size), 0, array.from(bar_index))
-structure_create(float size)						=>	Structure.new(touch_create("low", math.min(open, close), size), touch_create("high", math.max(open, close), size))
-
-use_structure(Contexts contexts, int length, float size, int fast_touches, int slow_touches) =>
-	var Context				_context		=	context_create("structure")
-	var Structure[]			_structures		=	array.new<Structure>()
-
-	Structure				_fast_high		=	na
-	Structure				_fast_low		=	na
-	Structure				_slow_high		=	na
-	Structure				_slow_low		=	na
-
-	Structure				_structure		=	structure_create(size)
-
-	var map<string, box>	_boxes			=	map.new<string, box>()
-
-	var bool				_higher			=	false
-	var bool				_lower			=	false
-
-	_structures.push(_structure)
-
-	for __structure in _structures
-		if close < open and (level_inside(__structure.low.level, open) or level_inside(__structure.low.level, close) or level_inside(__structure.low.level, high) or level_inside(__structure.low.level, low))
-			__structure.low.count	+=	1
-			if __structure.low.count > 1
-				__structure.low.index.push(bar_index)
-
-		if close >= open and (level_inside(__structure.high.level, open) or level_inside(__structure.high.level, close) or level_inside(__structure.high.level, high) or level_inside(__structure.high.level, low))
-			__structure.high.count	+=	1
-			if __structure.high.count > 1
-				__structure.high.index.push(bar_index)
-
-	for __structure in _structures
-		// This is simple "current" structure detection, based on open/close
-
-		if fast_touches > 0
-			if __structure.low.count >= fast_touches
-				if na(_fast_low)
-					_fast_low	:=		__structure
-					_lower		:=		false
-					_higher		:=		false
-				else if __structure.low.level.level < _fast_low.low.level.level
-					_fast_low	:=		__structure
-					_lower		:=		false
-					_higher		:=		true
-				else if _lower and __structure.low.level.level > _fast_low.low.level.level
-					if na(_fast_high)
-						_fast_low	:=		__structure
-						_lower		:=		false
-						_higher		:=		false
-					else if __structure.low.level.level < _fast_high.high.level.level and not level_inside(_fast_high.high.level, __structure.low.level.low) and not level_inside(_fast_high.high.level, __structure.low.level.high)
-						_fast_low	:=		__structure
-						_lower		:=		false
-						_higher		:=		false
-
-			if __structure.high.count >= fast_touches
-				if na(_fast_high)
-					_fast_high	:=		__structure
-					_lower		:=		false
-					_higher		:=		false
-				else if __structure.high.level.level > _fast_high.high.level.level
-					_fast_high	:=		__structure
-					_lower		:=		true
-					_higher		:=		false
-				else if _higher and __structure.high.level.level < _fast_high.high.level.level
-					if na(_fast_low)
-						_fast_high	:=		__structure
-						_lower		:=		false
-						_higher		:=		false
-					else if __structure.high.level.level > _fast_low.low.level.level and not level_inside(_fast_low.low.level, __structure.high.level.low) and not level_inside(_fast_low.low.level, __structure.high.level.high)
-						_fast_high	:=		__structure
-						_lower		:=		false
-						_higher		:=		false
-
-		// Extracts most touches from "slow" structure detection
-		//		That means, shows candles, where are a lot of open/close prices
-
-		if slow_touches > 0
-			if __structure.low.count >= slow_touches
-				if na(_slow_high)
-					_slow_low:=	__structure
-				else if not level_inside(_slow_high.high.level, __structure.low.level.low) and not level_inside(_slow_high.high.level, __structure.low.level.high) and (na(_slow_low) ? true : _structure.low.count > _slow_low.low.count)
-					_slow_low:=	__structure
-
-			if __structure.high.count >= slow_touches
-				if na(_slow_low)
-					_slow_high:=	__structure
-				else if not level_inside(_slow_low.low.level, __structure.high.level.low) and not level_inside(_slow_low.low.level, __structure.high.level.high) and (na(_slow_high) ? true : __structure.high.count > _slow_high.high.count)
-					_slow_high:=	__structure
-
-	if _structures.size() >= length
-		_structures.shift()
-
-	for [_, __box] in _boxes
-		box.delete(__box)
-
-	_boxes.clear()
-
-	if not na(_fast_low)
-		__low				=	_fast_low
-		_boxes.put("fast-low", box.new(__low.low.index.first(),		__low.low.level.low,	__low.low.index.last(),		__low.low.level.high,		extend = extend.both, border_color = color.new(color.red, 80),	bgcolor = color.new(color.red, 85)))
-
-	if not na(_fast_high)
-		__high				=	_fast_high
-		_boxes.put("fast-high", box.new(__high.high.index.first(),	__high.high.level.low,	__high.high.index.last(),	__high.high.level.high,		extend = extend.both, border_color = color.new(color.green, 80),	bgcolor = color.new(color.green, 85)))
-
-	if not na(_slow_low)
-		__low				=	_slow_low
-		_boxes.put("slow-low", box.new(__low.low.index.first(),		__low.low.level.low,	__low.low.index.last(),		__low.low.level.high,		extend = extend.both, border_color = color.new(color.fuchsia, 80),	bgcolor = color.new(color.fuchsia, 92)))
-
-	if not na(_slow_high)
-		__high				=	_slow_high
-		_boxes.put("slow-high", box.new(__high.high.index.first(),	__high.high.level.low,	__high.high.index.last(),	__high.high.level.high,		extend = extend.both, border_color = color.new(color.aqua, 80),	bgcolor = color.new(color.aqua, 92)))
-
-	use_context(contexts, _context)
-
-	//  ====================================================================================================================================================
-	//      Simple Trends detector
-	//  ====================================================================================================================================================
-
-use_trends(Contexts contexts, int length, int bars, int lookback, int runtime) =>
-	var Context	_context	=	context_create("trends")
-
-	var int		_index		=	na
-	var	int		_runtime	=	0
-	var int		_trend		=	0
-	var int		_count		=	0
-	bool		_kill		=	false
-
-	var	Level	_level		=	na
-
-	float		_top		=	math.max(open, close)
-	float		_bottom		=	math.min(open, close)
-	float		_body		=	_top - _bottom
-
-	bool		_rising		=	ta.rising(_bottom, length)
-	bool		_falling	=	ta.falling(_top, length)
-
-	var line	_line_break	=	na
-
-	if _trend == 1
-		_runtime	+=	1
-
-		if _bottom > _level.high
-			_count	:=	0
-			level_high(_level, _top)
-
-		if close < open and _bottom < _bottom[1]
-			_count	+=	1
-
-		if _runtime >= runtime and (_bottom < _level.low or (close < open and (_bottom - _level.low) <= _level.size * 0.7))
-			_count	+=	2
-
-		if close >= open
-			_count	:=	math.max(0, _count - 1)
-
-		line.set_x2(_line_break, bar_index)
-		line.set_y2(_line_break, _level.high)
-
-	else if _trend == -1
-		_runtime	+=	1
-
-		if _top < _level.high
-			_count	:=	0
-			level_high(_level, _bottom)
-
-		if close >= open and _top > _top[1]
-			_count	+=	1
-
-		if _runtime >= runtime and (_top > _level.low or (close >= open and (_top - _level.low) >= _level.size * 0.3))
-			_count	+=	2
-
-		if close <= open
-			_count	:=	math.max(0, _count - 1)
-
-		line.set_x2(_line_break, bar_index)
-		line.set_y2(_line_break, _level.high)
-
-	if _count >= bars or _kill
-		line.delete(_line_break)
-		_runtime	:=	0
-		_trend	:=	0
-		_level	:=	na
-
-	if close >= open and ta.rising(open, length) and _top > _top[lookback] and _trend == 0
-		_runtime	:=	0
-		_count		:=	0
-		_level		:=	level_create("up", _bottom, _top)
-
-		_index		:=	bar_index
-		_trend		:=	1
-
-		_line_break:=	line.new(bar_index, _level.low, bar_index, _level.high, extend = extend.both, color = color.green, width = 2)
-
-	if close < open and ta.falling(close, length) and _bottom < _bottom[lookback] and _trend == 0
-		_runtime	:=	0
-		_count		:=	0
-		_level		:=	level_create("down", _top, _bottom)
-
-		_index		:=	bar_index
-		_trend		:=	-1
-
-		_line_break:=	line.new(bar_index, _level.low, bar_index, _level.high, extend = extend.both, color = color.red, width = 2)
+usepoi(Contexts contexts) =>
+	var Context				_context		=	context_create("poi")
 
 	use_context(contexts, _context)
 
@@ -1745,29 +543,18 @@ use_trends(Contexts contexts, int length, int bars, int lookback, int runtime) =
 	//			All the inputs needed by this indicator.
 	//  ====================================================================================================================================================
 
-const string	group_structure				=	"- Structure -"
-var int			i_structure_length			=	input.int(		120,	"↔ Length",				minval = 3, group = group_structure, display = display.none, tooltip = "Length of structure tracking; bigger length means more candles tracked, so be careful, because this stuff may be heavy on resource usage.")
-var float		i_structure_size			=	input.float(	0.5,	"Size",					minval = 0, step = 0.1, group = group_structure, display = display.none, tooltip = "Candle level detection size (tolerance to count the candle as a touch)")
-var int			i_structure_fast_touches	=	input.int(		5,		"Fast Touches",			minval = 0, group = group_structure, display = display.none, tooltip = "Minimum number of contacts with candle's levels to draw a structure")
-var int			i_structure_slow_touches	=	input.int(		9,		"Slow Touches",			minval = 0, group = group_structure, display = display.none, tooltip = "Minimum number of contacts with candle's levels to draw a structure")
-
-const string	group_trends				=	"- Trends -"
-var int			i_trends_length				=	input.int(		1,		"↔ Length",				minval = 1, group = group_trends, display = display.none)
-var int			i_trends_bars				=	input.int(		2,		"Bars",					minval = 1, group = group_trends, display = display.none, tooltip = "How many bars are needed to confirm trend break")
-var int			i_trends_lookback			=	input.int(		3,		"Lookback",				minval = 1, group = group_trends, display = display.none, tooltip = "How far bar comparison must looks to check price to enter a trend")
-var int			i_trends_runtime			=	input.int(		3,		"Runtime",				minval = 0, group = group_trends, display = display.none, tooltip = "Runtime (number of bars during trend) tolernance to trend breaks")
+// const string	group_structure		=	"- Structure -"
+// var int			i_structure_length	=	input.int(		15,		"↔ Length",				minval = 3, group = group_structure, display = display.none, tooltip = "Length of structure tracking; bigger length means more candles tracked, so be careful, because this stuff may be heavy on resource usage.")
 
 const string	group_macd			=	"- MACD -"
-var int			i_macd_fast			=	input.int(	16,		"⏱Fast",					inline = "macd", group = group_macd, display = display.none)
-var int			i_macd_slow			=	input.int(	24,		"☕Slow",					inline = "macd", group = group_macd, display = display.none)
-var int			i_macd_signal		=	input.int(	9,		"📡Signal",					inline = "macd", group = group_macd, display = display.none)
+var int			i_macd_fast			=	input.int(	24,		"⏱Fast",					inline = "macd", group = group_macd, display = display.none)
+var int			i_macd_slow			=	input.int(	52,		"☕Slow",					inline = "macd", group = group_macd, display = display.none)
+var int			i_macd_signal		=	input.int(	18,		"📡Signal",					inline = "macd", group = group_macd, display = display.none)
 var bool		i_macd_markers		=	input.bool(	false,	"Markers",					group = group_macd, display = display.none)
-var bool		i_macd_show_signal	=	input.bool(	false,	"Show signal",				group = group_macd, display = display.none, tooltip = "Integrates MACD information into plot")
 
 const string	group_cci			=	"- CCI -"
-var int			i_cci_length		=	input.int(	16,		"↔ Length",					group = group_cci, display = display.none)
-var bool		i_cci_markers		=	input.bool(	false,	"Markers",					group = group_cci, display = display.none)
-var bool		i_cci_show_signal	=	input.bool(	false,	"Show Signal",				group = group_cci, display = display.none)
+var int			i_cci_length		=	input.int(	30,		"↔ Length",					group = group_cci, display = display.none)
+var bool		i_cci_markers		=	input.bool(	true,	"Markers",					group = group_cci, display = display.none)
 
 const string	group_ema			=	"- EMA -"
 var int			i_ema_length_1		=	input.int(		4,				"EMA #1",		group = group_ema, display = display.none,	inline = "ema1")
@@ -1788,47 +575,33 @@ var color		i_ema_color_5		=	input.color(	color.fuchsia,	"",				group = group_ema
 var int			i_ema_length_6		=	input.int(		24,				"EMA #6",		group = group_ema, display = display.none,	inline = "ema6")
 var color		i_ema_color_6		=	input.color(	color.purple,	"",				group = group_ema, display = display.none,	inline = "ema6")
 
-var bool		i_ema_signal		=	input.bool(	false,	"📡Signal",					group = group_ema, display = display.none)
-var bool		i_ema_background	=	input.bool(	false,	"🪣Background",				inline = "ema-bg", group = group_ema, display = display.none, tooltip = "Mark ordered EMAs:\nWhen green, signals are 1 > 6\nWhen red, signals are 1 < 6")
+var bool		i_ema_background	=	input.bool(	true,	"🪣Background",				inline = "ema-bg", group = group_ema, display = display.none, tooltip = "Mark ordered EMAs:\nWhen green, signals are 1 > 6\nWhen red, signals are 1 < 6")
 var color		i_ema_bg_green		=	input.color(	color.rgb(182, 233, 124, 95),	"",				inline = "ema-bg", group = group_ema, display = display.none)
 var color		i_ema_bg_red		=	input.color(	color.rgb(139, 44, 76, 85),	"",				inline = "ema-bg", group = group_ema, display = display.none)
 
 const string	group_super_trend2			=	"- SuperTrend 2 -"
-var int			i_super_trend2_length		=	input.int(		75,		"↔ Length & Multiplier",		minval = 6, inline = "st2",	group = group_super_trend2, display = display.none)
-var float		i_super_trend2_mutliplier	=	input.float(	3,		"",									minval = 0.5, step = 0.5, inline = "st2",	group = group_super_trend2, display = display.none)
-var bool		i_super_trend2_show			=	input.bool(		false,	"Show",							group = group_super_trend2, display = display.none)
+var int			i_super_trend2_length		=	input.int(		30,		"↔ Length & Multiplier",		minval = 6, inline = "st2",	group = group_super_trend2, display = display.none)
+var float		i_super_trend2_mutliplier	=	input.float(	1.5,	"",									minval = 0.5, step = 0.5, inline = "st2",	group = group_super_trend2, display = display.none)
+var bool		i_super_trend2_show			=	input.bool(		true,	"Show",							inline = "st2-color", group = group_super_trend2, display = display.none)
+var bool		i_super_trend2_fill			=	input.bool(		false,	"Fill",							inline = "st2-color", group = group_super_trend2, display = display.none)
+var color		i_super_trend2_green		=	input.color(	color.rgb(134, 211, 255, 25),	"",		inline = "st2-color", group = group_super_trend2, display = display.none)
+var color		i_super_trend2_red			=	input.color(	#e4a9ffbf,		"",		inline = "st2-color", group = group_super_trend2, display = display.none)
+var color		i_super_trend2_yellow		=	input.color(	color.new(color.yellow, 25),	"",		inline = "st2-color", group = group_super_trend2, display = display.none)
 
-const string	group_atr_signal			=	"- ATR Signal -"
-var int			i_atr_signal_length			=	input.int(		16,		"↔ Length & factor",	inline = "atr-signal", group = group_atr_signal, display = display.none, minval = 2, step = 1)
-var float		i_atr_signal_factor			=	input.float(	3,		"",					inline = "atr-signal", group = group_atr_signal, display = display.none, minval = 0.05, step = 0.05)
-
-_fibb_alpha	=	50
+_fibb_alpha	=	0
 const string	group_day					=	"- Day Structure -"
 var bool		i_day_level					=	input.bool(		true,			"📅 Day Low/High",		group = group_day, display = display.none,	inline = "day")
 var color		i_day_high_color			=	input.color(	color.new(color.teal, 50),	"",			group = group_day, display = display.none,	inline = "day")
 var color		i_day_low_color				=	input.color(	color.new(color.fuchsia, 50),	"",		group = group_day, display = display.none,	inline = "day")
-var bool		i_day_fibb					=	input.bool(		false,			"Φ Fibbonachi",			group = group_day, display = display.none,	inline = "day-fibb",			tooltip = "Display day's low/high + it's fibbonachi levels")
-var color		i_day_fibb_color_1			=	input.color(	color.new(color.red,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-var color		i_day_fibb_color_2			=	input.color(	color.new(color.yellow,	_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-var color		i_day_fibb_color_3			=	input.color(	color.new(color.orange,	_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-var color		i_day_fibb_color_4			=	input.color(	color.new(color.green,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-var color		i_day_fibb_color_5			=	input.color(	color.new(color.teal,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-var color		i_day_fibb_color_6			=	input.color(	color.new(color.aqua,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-var color		i_day_fibb_color_7			=	input.color(	color.new(color.blue,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb")
-
-const string	group_session			=	"- Session -"
-var string		i_session_time			=	input.string(	"1000-2200",	"⏱Time range",			group = group_session, display = display.none)
-var bool		i_session_background	=	input.bool(		false,			"🪣Background",			group = group_session, display = display.none)
-
-// const string	_script_hint		=	"Here you can put your 'pattern' parts of script; there is a limit this input can hold, so use reasonable amount of 'pattern's per input."
-// var	string		i_script_0			=	input.text_area("", "- 😎 Init 😎 -",	display = display.none, tooltip = "Here you can put initialization part of the script")
-// var	string		i_script_1			=	input.text_area("", "- 😎 Script #1 😎 -",	display = display.none, tooltip = _script_hint)
-// var	string		i_script_2			=	input.text_area("", "- 😎 Script #2 😎 -",	display = display.none, tooltip = _script_hint)
-// var	string		i_script_3			=	input.text_area("", "- 😎 Script #3 😎 -",	display = display.none,	tooltip = _script_hint)
-// var	string		i_script_4			=	input.text_area("", "- 😎 Script #4 😎 -",	display = display.none,	tooltip = _script_hint)
-
-// hack, hehehe
-// var string[]	i_script				=	array.from(i_script_0, i_script_1, i_script_2, i_script_3, i_script_4)
+var bool		i_day_fibb					=	input.bool(		true,			"Φ Fibbonachi",			group = group_day, display = display.none,	inline = "day-fibb",			tooltip = "Display day's low/high + it's fibbonachi levels; factor is fibbonachi level size")
+var float		i_day_fibb_factor			=	input.float(	0.3,			"Factor",				group = group_day, display = display.none,	inline = "day-fibb", minval = 0, step = 0.01)
+var color		i_day_fibb_color_1			=	input.color(	color.new(color.red,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
+var color		i_day_fibb_color_2			=	input.color(	color.new(color.yellow,	_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
+var color		i_day_fibb_color_3			=	input.color(	color.new(color.orange,	_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
+var color		i_day_fibb_color_4			=	input.color(	color.new(color.green,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
+var color		i_day_fibb_color_5			=	input.color(	color.new(color.teal,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
+var color		i_day_fibb_color_6			=	input.color(	color.new(color.aqua,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
+var color		i_day_fibb_color_7			=	input.color(	color.new(color.blue,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
 
 	//  ====================================================================================================================================================
 	//      Types specific for this system
@@ -1856,36 +629,14 @@ result_create() =>
 main() =>
 	var Result          _result     =	result_create()
     Contexts        	_contexts   =   _result.contexts
-	// var Script   		_script		=	parse(script)
 
-	use_defaults     			(_contexts)
-	// eval_init					(_contexts, _script)
-
-	//	---	Individual providers (sources); if you want to add your own indicator/provider/whatever, put it here
-
-	//	Candle "must" be first as others may want to access values it provides (candle has no Dependencies)
-	// use_candle           		(_contexts)
     use_day              		(_contexts)
-    use_day_fibbonachi   		(_contexts)
+    use_day_fibbonachi   		(_contexts, i_day_fibb_factor)
     use_ema              		(_contexts, i_ema_length_1, i_ema_length_2, i_ema_length_3, i_ema_length_4, i_ema_length_5, i_ema_length_6)
     use_cci              		(_contexts, i_cci_length)
-	use_session          		(_contexts, i_session_time)
 	use_volume					(_contexts)
 	use_macd					(_contexts, i_macd_fast, i_macd_slow, i_macd_signal)
 	use_super_trend2			(_contexts, i_super_trend2_length, i_super_trend2_mutliplier)
-	use_atr_signal				(_contexts, i_atr_signal_length, i_atr_signal_factor)
-	use_structure				(_contexts, i_structure_length, i_structure_size, i_structure_fast_touches, i_structure_slow_touches)
-	use_trends					(_contexts, i_trends_length, i_trends_bars, i_trends_lookback, i_trends_runtime)
-	//	Candle levels "must" be last, because providers may levels which candle handles (computes flags against those levels)
-	// use_candle_levels    		(_contexts)
-
-	//	---	That's it, there is nothing else interesting; if you are searching for the magick executing all actions and so on,
-	//		Look into script as it handles pattern matching, action execution and all the other cool stuff
-
-	// eval						(_contexts, _script)
-
-	//	Trader must be last one as it handles Strategy Tester and order stuff (potentially) produced by a script
-	// use_trader					(_contexts)
 
 	_result
 
@@ -1899,117 +650,51 @@ _contexts	=	_result.contexts
 	//  ====================================================================================================================================================
 	//      Render day's low and high
 	//  ====================================================================================================================================================
-
-_high		=	contexts_get_level(_contexts, "day", "level").high
-_low		=	contexts_get_level(_contexts, "day", "level").low
-_plot_high	=	plot(_high,	style =	plot.style_steplinebr,	linewidth = 2,	display = i_day_level ? display.pane : display.none,	color = i_day_high_color,	editable = false)
-_plot_low	=	plot(_low,	style =	plot.style_steplinebr,	linewidth = 2,	display = i_day_level ? display.pane : display.none,	color = i_day_low_color,	editable = false)
+_plot_high	=	plot(contexts_get_level(_contexts, "day", "level").high,	style =	plot.style_steplinebr,	linewidth = 2,	display = i_day_level ? display.pane : display.none,	color = i_day_high_color,	title = "Day - Upper Level")
+_plot_low	=	plot(contexts_get_level(_contexts, "day", "level").low,		style =	plot.style_steplinebr,	linewidth = 2,	display = i_day_level ? display.pane : display.none,	color = i_day_low_color,	title = "Day - Lower Level")
 
 	//  ====================================================================================================================================================
 	//      Render Fibbonachi levels
 	//  ====================================================================================================================================================
 
-_plot_0_1 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "0").low	:	na,		"Fibb - 0 (low)",		linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_1, 	display = display.pane, editable = false)
-_plot_0_2 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "0").high	:	na,		"Fibb - 0 (high)",		linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_1,	display = display.pane, editable = false)
-
-_plot_20_1 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "20").low	:	na,		"Fibb - 23.6 (low)", 	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_2, 	display = display.pane, editable = false)
-_plot_20_2 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "20").high	:	na,		"Fibb - 23.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_2,	display = display.pane, editable = false)
-
-_plot_30_1 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "30").low	:	na,		"Fibb - 38.2 (low)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_3,	display = display.pane, editable = false)
-_plot_30_2 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "30").high	:	na,		"Fibb - 38.2 (high)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_3,	display = display.pane, editable = false)
-
-_plot_50_1 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "50").low	:	na,		"Fibb - 50 (low)",		linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_4,	display = display.pane, editable = false)
-_plot_50_2 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "50").high	:	na,		"Fibb - 50 (high)",		linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_4, 	display = display.pane, editable = false)
-
-_plot_60_1 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "60").low	:	na,		"Fibb - 61.8 (low)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_5, 	display = display.pane, editable = false)
-_plot_60_2 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "60").high	:	na,		"Fibb - 61.8 (high)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_5, 	display = display.pane, editable = false)
-
-_plot_70_1 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "70").low	:	na,		"Fibb - 78.6 (low)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_6,	display = display.pane, editable = false)
-_plot_70_2 		=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "70").high	:	na,		"Fibb - 78.6 (high)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_6,	display = display.pane, editable = false)
-
-_plot_100_1 	=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "100").low	:	na,		"Fibb - 100 (low)",		linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_7,	display = display.pane, editable = false)
-_plot_100_2 	=	plot(i_day_fibb ?	contexts_get_level(_contexts, "day-fibbonachi", "100").high	:	na,		"Fibb - 100 (high)",	linewidth = 1, style = plot.style_steplinebr, color = i_day_fibb_color_7,	display = display.pane, editable = false)
+if i_day_fibb
+	level_render_zone("day-fibb-0",		contexts_get_level(_contexts,	"day-fibbonachi", "0"),		na, na, i_day_fibb_color_1, false)
+// 	level_render_zone("day-fibb-20",	contexts_get_level(_contexts,	"day-fibbonachi", "20"),	na, na, i_day_fibb_color_2, false)
+// 	level_render_zone("day-fibb-30",	contexts_get_level(_contexts,	"day-fibbonachi", "30"),	na, na, i_day_fibb_color_3, false)
+// 	level_render_zone("day-fibb-50",	contexts_get_level(_contexts,	"day-fibbonachi", "50"),	na, na, i_day_fibb_color_4, false)
+// 	level_render_zone("day-fibb-60",	contexts_get_level(_contexts,	"day-fibbonachi", "60"),	na, na, i_day_fibb_color_5, false)
+// 	level_render_zone("day-fibb-70",	contexts_get_level(_contexts,	"day-fibbonachi", "70"),	na, na, i_day_fibb_color_6, false)
+// 	level_render_zone("day-fibb-100",	contexts_get_level(_contexts,	"day-fibbonachi", "100"),	na, na, i_day_fibb_color_7, false)
 
 	//  ====================================================================================================================================================
-	//      Render Profit/Loss for trades
+	//      SuperTrend 2
 	//  ====================================================================================================================================================
 
-_profit_long	=	plot(contexts_get_bool(_contexts, "trade", "long") ? contexts_get_float(_contexts, "trade", "profit")	:	na,		"Long Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.green, 50),	display = display.pane, editable = false)
-_loss_long		=	plot(contexts_get_bool(_contexts, "trade", "long") ? contexts_get_float(_contexts, "trade", "loss") 	:	na,		"Long Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.red, 50),	display = display.pane, editable = false)
-fill(_profit_long, _loss_long, title = "Long Background", color = color.new(color.green, 95), editable = false)
-
-_profit_short	=	plot(contexts_get_bool(_contexts, "trade", "short") ? contexts_get_float(_contexts, "trade", "profit")	:	na,		"Short Profit",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.green, 50),	display = display.pane, editable = false)
-_loss_short		=	plot(contexts_get_bool(_contexts, "trade", "short") ? contexts_get_float(_contexts, "trade", "loss") 	:	na,		"Short Loss",	offset = 1,	style = plot.style_steplinebr, linewidth = 2, color = color.new(color.red, 50),	display = display.pane, editable = false)
-fill(_profit_short, _loss_short, title = "Short Background", color = color.new(color.red, 95), editable = false)
-
-// 	//  ====================================================================================================================================================
-// 	//      SuperTrend 2
-// 	//  ====================================================================================================================================================
-
-_super_up_plot		=	plot(i_super_trend2_show ? contexts_get_float(_contexts, "super-trend2", "up.signal")	:	na,	title	=	"SuperTrend 2 - Uptrend",	style	=	plot.style_linebr,	linewidth	=	2,	color	=	contexts_get_bool(_contexts, "super-trend2", "hits")	?	color.yellow	: color.green, display = display.pane, editable = false)
-_super_down_plot	=	plot(i_super_trend2_show ? contexts_get_float(_contexts, "super-trend2", "down.signal")	:	na,	title	=	"SuperTrend 2 - Downtrend",	style	=	plot.style_linebr,	linewidth	=	2,	color	=	contexts_get_bool(_contexts, "super-trend2", "hits")	?	color.yellow	:	color.red, display = display.pane, editable = false)
+_super_up_plot		=	plot(i_super_trend2_show ? contexts_get_float(_contexts, "super-trend2", "up.signal")	:	na,	style	=	plot.style_steplinebr,	linewidth	=	3,	color	=	contexts_get_bool(_contexts, "super-trend2", "hits")	?	i_super_trend2_yellow	:	i_super_trend2_green,	display = display.pane, editable = false)
+_super_down_plot	=	plot(i_super_trend2_show ? contexts_get_float(_contexts, "super-trend2", "down.signal")	:	na,	style	=	plot.style_steplinebr,	linewidth	=	3,	color	=	contexts_get_bool(_contexts, "super-trend2", "hits")	?	i_super_trend2_yellow	:	i_super_trend2_red,		display = display.pane, editable = false)
 _plot_ohlc			=	plot(ohlc4, title="OHLC4", style=plot.style_circles, display = display.none, editable = false)
 
-longFillColor	= color.new(contexts_get_bool(_contexts, "super-trend2", "up")		? color.green	: na, 85)
-shortFillColor	= color.new(contexts_get_bool(_contexts, "super-trend2", "down")	? color.red	: na, 85)
-fill(_plot_ohlc, _super_up_plot,	title="UpTrend Highligter",		color	=	longFillColor, editable = false)
-fill(_plot_ohlc, _super_down_plot,	title="DownTrend Highligter",	color	=	shortFillColor, editable = false)
+fill(_plot_ohlc,	_super_up_plot,		color	=	i_super_trend2_fill and contexts_get_bool(_contexts, "super-trend2", "up")		? i_super_trend2_green	: na, title = "SuperTrend 2 - Uptrend")
+fill(_plot_ohlc,	_super_down_plot,	color	=	i_super_trend2_fill and contexts_get_bool(_contexts, "super-trend2", "down")	? i_super_trend2_red	: na, title = "SuperTrend 2 - Downtrend")
 
-// 	//  ====================================================================================================================================================
-// 	//      Render Trade flags
-// 	//  ====================================================================================================================================================
+	//  ====================================================================================================================================================
+	//      Render EMA
+	//  ====================================================================================================================================================
 
-plotshape(contexts_get_bool(_contexts, "ctx", "buy"),		"Buy Label",		style = shape.labelup,		location = location.belowbar, color = color.teal,       display = display.pane, editable = false)
-plotshape(contexts_get_bool(_contexts, "ctx", "sell"),		"Sell Label",		style = shape.labeldown,	location = location.abovebar, color = color.fuchsia,    display = display.pane, editable = false)
-plotshape(contexts_get_bool(_contexts, "trade", "closed"),	"Closed",			style = shape.xcross,		location = location.abovebar, color = color.red,        display = display.pane, editable = false)
+fill(_plot_low, _plot_high, i_ema_background and contexts_get_bool(_contexts, "ema", "1-6") ?	i_ema_bg_green	: na,	title = "EMA - Uptrend")
+fill(_plot_low, _plot_high, i_ema_background and contexts_get_bool(_contexts, "ema", "6-1")	?	i_ema_bg_red	: na,	title = "EMA - Downtrend")
 
-// 	//  ====================================================================================================================================================
-// 	//      Session
-// 	//  ====================================================================================================================================================
+	//  ====================================================================================================================================================
+	//      CCI markers
+	//  ====================================================================================================================================================
 
-bgcolor((i_session_background ? contexts_get_bool(_contexts, "session", "open") : true) ? na :color.new(color.gray, 95), title = "Out-of-Session Background", editable = false)
+_shape_size = size.small
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.exit"),		"CCI Below - Exit",		    style = shape.labelup,		size = _shape_size,  location = location.belowbar,	color = color.teal,         display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.exit"),		"CCI Above - Exit",		    style = shape.labeldown,	size = _shape_size,  location = location.abovebar,	color = color.fuchsia,      display = display.pane)
 
-// 	//  ====================================================================================================================================================
-// 	//      Render EMA
-// 	//  ====================================================================================================================================================
-fill(_plot_low, _plot_high, i_ema_background and contexts_get_bool(_contexts, "ema", "1-6") ?	i_ema_bg_green	: na,	editable = false)
-fill(_plot_low, _plot_high, i_ema_background and contexts_get_bool(_contexts, "ema", "6-1")	?	i_ema_bg_red	: na,	editable = false)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.enter"),		"CCI Below - Enter",		style = shape.labeldown,	size = _shape_size,  location = location.abovebar,	color = color.teal,         display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.enter"),		"CCI Above - Enter",		style = shape.labelup,		size = _shape_size,  location = location.belowbar,	color = color.fuchsia,      display = display.pane)
 
-// 	//  ====================================================================================================================================================
-// 	//      CCI markers
-// 	//  ====================================================================================================================================================
-
-_shape_size = size.tiny
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.exit"),		"CCI Below - Exit",		    style = shape.triangleup,	size = _shape_size,  location = location.bottom,	color = color.teal,         display = display.pane, editable = false)
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.exit"),		"CCI Above - Exit",		    style = shape.triangledown,	size = _shape_size,  location = location.top,		color = color.fuchsia,      display = display.pane, editable = false)
-
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.enter"),		"CCI Below - Enter",		style = shape.triangledown,	size = _shape_size,  location = location.bottom,	color = color.teal,         display = display.pane, editable = false)
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.enter"),		"CCI Above - Enter",		style = shape.triangleup,	size = _shape_size,  location = location.top,		color = color.fuchsia,      display = display.pane, editable = false)
-
-_signal_alpha		=	0
-_signal_width		=	4
-
-_cci_high_color		=	contexts_get_bool(_contexts, "cci", "higher")	?	color.new(color.blue,		_signal_alpha) : na
-_cci_high_color		:=	contexts_get_bool(_contexts, "cci", "above")	?	color.new(color.orange,	_signal_alpha) : _cci_high_color
-
-_cci_low_color		=	contexts_get_bool(_contexts, "cci", "lower")	?	color.new(color.blue,		_signal_alpha) : na
-_cci_low_color		:=	contexts_get_bool(_contexts, "cci", "below")	?	color.new(color.orange,	_signal_alpha) : _cci_low_color
-
-_cci_signal_offset	=	20
-
-plot(i_cci_show_signal ? _high	+ _cci_signal_offset : na, color = _cci_high_color,	style = plot.style_linebr, linewidth = _signal_width, display = display.pane, editable = false)
-plot(i_cci_show_signal ? _low	- _cci_signal_offset : na, color = _cci_low_color,	style = plot.style_linebr, linewidth = _signal_width, display = display.pane, editable = false)
-
-
-// 	//  ====================================================================================================================================================
-// 	//      MACD Markers
-// 	//  ====================================================================================================================================================
-
-_shape_size:= size.tiny
-
-_macd_high_color	=	contexts_get_bool(_contexts, "macd", "gt.zero") ? (contexts_get_bool(_contexts, "macd", "histogram.lt.zero") ? color.new(color.red, _signal_alpha)	: color.new(color.green, _signal_alpha))	:	na
-_macd_low_color		=	contexts_get_bool(_contexts, "macd", "lt.zero") ? (contexts_get_bool(_contexts, "macd", "histogram.lt.zero") ? color.new(color.red, _signal_alpha)	: color.new(color.green, _signal_alpha))	:	na
-_macd_signal_offset	=	7.5
-
-plot(i_macd_show_signal ? _high	+ _macd_signal_offset : na, color = _macd_high_color,	style = plot.style_linebr, linewidth = _signal_width, display = display.pane, editable = false)
-plot(i_macd_show_signal ? _low	- _macd_signal_offset : na, color = _macd_low_color,	style = plot.style_linebr, linewidth = _signal_width, display = display.pane, editable = false)
+	//  ====================================================================================================================================================
+	//      MACD Markers
+	//  ====================================================================================================================================================

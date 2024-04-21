@@ -111,7 +111,7 @@ level_render_zone(string name, Level level, int index, int last, color color, bo
 		if zone
 			_line_low	:=	line.new(_index,	level.low,	_last,	level.low, 		style = line.style_dotted,	extend = _extend, color = color, width = 1)
 			_line_high	:=	line.new(_index,	level.high,	_last,	level.high,		style = line.style_dotted,	extend = _extend, color = color, width = 1)
-			_box		:=	box.new(_index,		level.high,	_last,	level.low,									extend = _extend, border_color = na, border_width = na, bgcolor = color.new(color, 95))
+			_box		:=	box.new(_index,		level.high,	_last,	level.low,									extend = _extend, border_color = na, border_width = na, bgcolor = color.new(color, 80))
 
 	true
 
@@ -353,18 +353,17 @@ use_day(Contexts contexts) =>
 	//  ====================================================================================================================================================
 
 //	@function	Listens for changes of Day Low/High and adjusts Fibbonachi levels accordingly
-use_day_fibbonachi(Contexts contexts, float factor) =>
+use_day_fibbonachi(Contexts contexts) =>
 	var Context	_context	=	context_create("day-fibbonachi")
 	Level		_level		=	contexts_get_level(contexts, "day", "level")
-	float		_factor		=	_level.size * (factor / 10)
 
 	//	We don't want to execute Fibb computation on every bar - don't waste TradingView's resources on the same computations
 	if use_init()
-		context_set(_context, fibbonachi(_level, _factor))
+		context_set(_context, fibbonachi(_level, 0))
 
 	//	Same here - we're computing day's fibbonachi, so listen for changes comming from "use_day_low_high" or who provides the vallues
 	if contexts_get_bool(contexts, "day", "change")
-		context_set(_context, fibbonachi(_level, _factor))
+		context_set(_context, fibbonachi(_level, 0))
 
 	use_context(contexts, _context)
 
@@ -391,11 +390,13 @@ use_ema(Contexts contexts, int length_1, int length_2, int length_3, int length_
 
 	_6_1	=	_ema_1 < _ema_2 and _ema_2 < _ema_3 and _ema_3 < _ema_4 and _ema_5 < _ema_6
 	_1_6	=	_ema_1 > _ema_2 and _ema_2 > _ema_3 and _ema_3 > _ema_4 and _ema_5 > _ema_6
-	context_set(_context,	"6-1",			_6_1)
-	context_set(_context,	"6-1.signal",	_6_1 and not _6_1[1])
+	context_set(_context,	"6-1",					_6_1)
+	context_set(_context,	"6-1.signal.enter",		_6_1 and not _6_1[1])
+	context_set(_context,	"6-1.signal.exit",	not _6_1 and _6_1[1])
 
-	context_set(_context,	"1-6",			_1_6)
-	context_set(_context,	"1-6.signal",	_1_6 and not _1_6[1])
+	context_set(_context,	"1-6",					_1_6)
+	context_set(_context,	"1-6.signal.enter",		_1_6 and not _1_6[1])
+	context_set(_context,	"1-6.signal.exit",	not	_1_6 and _1_6[1])
 
 	use_context(contexts, _context)
 
@@ -418,6 +419,9 @@ use_cci(Contexts contexts, int length) =>
 
 	context_set(_context, "lower",				_signal 	< 	0)
 	context_set(_context, "higher",				_signal 	> 	0)
+
+	context_set(_context, "lower.signal",		_signal 	< 	0 and _signal[1] >= 0)
+	context_set(_context, "higher.signal",		_signal 	> 	0 and _signal[1] <= 0)
 
 	context_set(_context, "zone", 				_signal 	>= -100		and _signal		<= 100)
 
@@ -460,78 +464,71 @@ use_volume(Contexts contexts) =>
     use_context(contexts, _context)
 
 	//  ====================================================================================================================================================
-	//      MACD
-	//			- Default MACD, both MACD and signal is EMA based
-	//  ====================================================================================================================================================
-
-use_macd(Contexts contexts, simple int fast, simple int slow, simple int signal) =>
-	var Context	_context			=	context_create("macd")
-
-	[_macd, _signal, _histogram] = ta.macd(close, fast, slow, signal)
-
-	context_set(_context, "macd",		_macd)
-	context_set(_context, "signal",		_signal)
-	context_set(_context, "histogram",	_histogram)
-
-	context_set(_context, "macd.lt.zero",		_macd < 0)
-	context_set(_context, "macd.gt.zero",		_macd > 0)
-	context_set(_context, "signal.lt.zero",		_signal < 0)
-	context_set(_context, "signal.gt.zero",		_signal > 0)
-	context_set(_context, "lt.zero",			_macd < 0 and _signal < 0)
-	context_set(_context, "gt.zero",			_macd > 0 and _signal > 0)
-	context_set(_context, "histogram.lt.zero",	_histogram < 0)
-	context_set(_context, "histogram.gt.zero",	_histogram > 0)
-	context_set(_context, "macd.over.signal",	ta.crossover(_macd, _signal))
-	context_set(_context, "macd.under.signal",	ta.crossunder(_macd, _signal))
-	context_set(_context, "macd.over.zero",		ta.crossover(_macd, 0))
-	context_set(_context, "macd.under.zero",	ta.crossunder(_macd, 0))
-	context_set(_context, "signal.over.zero",	ta.crossover(_signal, 0))
-	context_set(_context, "signal.under.zero",	ta.crossunder(_signal, 0))
-
-	context_set(_context, "buy",	ta.crossover(_macd, _signal) and _macd < 0 and _signal < 0)
-	context_set(_context, "sell",	ta.crossunder(_macd, _signal) and _macd > 0 and _signal > 0)
-
-	use_context(contexts, _context)
-
-	//  ====================================================================================================================================================
-	//      Improved SuperTrend
-	//  ====================================================================================================================================================
-
-import Electrified/SupportResitanceAndTrend/7 as super_trend_plus
-
-use_super_trend2(Contexts contexts, simple int length, simple float multiple) =>
-	var Context		_context		=	context_create("super-trend2")
-
-	_result	= super_trend_plus.superTrend(multiple, length, "VAWMA", 2, 0)
-	_trend = _result.trend
-
-	context_set(_context, "trend",				_result.trend)
-	context_set(_context, "uptrend.signal",		_result.up)
-	context_set(_context, "downtrend.signal",	_result.dn)
-
-	context_set(_context, "up",					_trend == 1)
-	context_set(_context, "up.signal",			_trend == 1 ? _result.up : na)
-	context_set(_context, "down",				_trend == -1)
-	context_set(_context, "down.signal",		_trend == -1 ? _result.dn : na)
-
-	context_set(_context, "warning",			_result.warning)
-	context_set(_context, "hits",				_result.hitCount >= 1)
-
-	context_set(_context, "buy",				_trend == 1 and _trend[1] == -1)
-	context_set(_context, "sell",				_trend == -1 and _trend[1] == 1)
-
-	use_context(contexts, _context)
-
-	//  ====================================================================================================================================================
 	//      Simple Structure and POI detection
 	//			This indicator tries to find interesting points, where a lot of candles "meet", potentially showing lows/highs/supports/resistances based
 	//			on candles in the given line/zone.
 	//  ====================================================================================================================================================
 
-usepoi(Contexts contexts) =>
-	var Context				_context		=	context_create("poi")
+use_poi(Contexts contexts, int short_length, float short_size, int short_count, int short_offset, color short_color, int long_length, float long_size, int long_count, int long_offset, color long_color) =>
+	var Context		_context			=	context_create("poi")
+	Level			_level_short_low	=	level_size("short-low",		math.min(open, close), short_size)
+	Level			_level_short_high	=	level_size("short-high",	math.max(open, close), short_size)
+	Level			_level_long_low		=	level_size("long-low",		math.min(open, close), long_size)
+	Level			_level_long_high	=	level_size("long-high",		math.max(open, close), long_size)
+	int				_count				=	0
+
+	_count:=	0
+	if short_length > 0
+		for int __index = short_offset to short_length
+			Level 	__match	=	na
+
+			if level_inside(_level_short_low, open[__index]) or level_inside(_level_short_low, close[__index])
+				_count	+=	1
+				__match:=	_level_short_low
+			else if level_inside(_level_short_high, open[__index]) or level_inside(_level_short_high, close[__index])
+				_count	+=	1
+				__match:=	_level_short_high
+
+			if not na(__match) and _count >= short_count
+				level_render_zone("poi-short", __match, bar_index - __index, bar_index, short_color, true)
+				break
+
+	_count:=	0
+	if long_length > 0
+		for int __index = long_offset to long_length
+			Level 	__match	=	na
+
+			if level_inside(_level_long_low, open[__index]) or level_inside(_level_long_low, close[__index])
+				_count	+=	1
+				__match:=	_level_long_low
+			else if level_inside(_level_long_high, open[__index]) or level_inside(_level_long_high, close[__index])
+				_count	+=	1
+				__match:=	_level_long_high
+
+			if not na(__match) and _count >= long_count
+				level_render_zone("poi-long", __match, bar_index - __index, bar_index, long_color, true)
+				break
 
 	use_context(contexts, _context)
+
+use_rotation(Contexts contexts, int length, float size, int count, color color) =>
+	var Context	_context	=	context_create("rotation")
+	Level		_level		=	level_create("rotation", low - size, high + size)
+	Level 		_match	=	na
+
+	_count	=	0
+	for int __index	= 0 to length
+		if level_inside(_level, open[__index]) and level_inside(_level, close[__index])
+			_count	+=	1
+			_match	:=	_level
+		else
+			break
+
+	if not na(_match) and _count >= count
+		level_render_zone("rotation", _match, bar_index - (_count - 1), bar_index, color, true)
+
+	use_context(contexts, _context)
+
 
 //  ====================================================================================================================================================
 //      PiPi Local code
@@ -543,58 +540,48 @@ usepoi(Contexts contexts) =>
 	//			All the inputs needed by this indicator.
 	//  ====================================================================================================================================================
 
-// const string	group_structure		=	"- Structure -"
-// var int			i_structure_length	=	input.int(		15,		"↔ Length",				minval = 3, group = group_structure, display = display.none, tooltip = "Length of structure tracking; bigger length means more candles tracked, so be careful, because this stuff may be heavy on resource usage.")
+const string	group_poi_short		=	"- Point-of-Interest: Short -"
+var int			i_poi_short_length	=	input.int(		30,		"Length",			minval = 0, 	group = group_poi_short, display = display.none)
+var float		i_poi_short_size	=	input.float(	0.1,	"Size",				minval = 0.05, step = 0.05, group = group_poi_short, display = display.none)
+var int			i_poi_short_count	=	input.int(		3,		"Count",			minval = 1, 	group = group_poi_short, display = display.none)
+var int			i_poi_short_offset	=	input.int(		2,		"Offset",			minval = 2, 	group = group_poi_short, display = display.none)
+var color		i_poi_short_color	=	input.color(	color.fuchsia,	"Color",	group = group_poi_short, display = display.none)
 
-const string	group_macd			=	"- MACD -"
-var int			i_macd_fast			=	input.int(	24,		"⏱Fast",					inline = "macd", group = group_macd, display = display.none)
-var int			i_macd_slow			=	input.int(	52,		"☕Slow",					inline = "macd", group = group_macd, display = display.none)
-var int			i_macd_signal		=	input.int(	18,		"📡Signal",					inline = "macd", group = group_macd, display = display.none)
-var bool		i_macd_markers		=	input.bool(	false,	"Markers",					group = group_macd, display = display.none)
+const string	group_poi_long		=	"- Point-of-Interest: Long -"
+var int			i_poi_long_length	=	input.int(		1000,	"Length",	minval = 0, 				group = group_poi_long, display = display.none, tooltip = "Set long distance detection:\nLength - number of bars of lookback\nSize - Detection tolerance\nOffset - How many bars to skip before starting match\nColor. Yes, color. You know that")
+var float		i_poi_long_size		=	input.float(	0.2,	"Size",		minval = 0.05, step = 0.05, group = group_poi_long, display = display.none)
+var int			i_poi_long_count	=	input.int(		20,		"Count",	minval = 1, 				group = group_poi_long, display = display.none)
+var int			i_poi_long_offset	=	input.int(		0,		"Offset",	minval = 0, 				group = group_poi_long, display = display.none)
+var color		i_poi_long_color	=	input.color(	color.maroon,	"Color",					group = group_poi_long, display = display.none)
+
+const string	group_rotation		=	"- Rotation -"
+var int			i_rotation_length	=	input.int(		15,		"Length",		minval = 0, 					group = group_rotation, display = display.none)
+var float		i_rotation_size		=	input.float(	1.25,	"Size",			minval = 0.05, step = 0.05,		group = group_rotation, display = display.none)
+var int			i_rotation_count	=	input.int(		6,		"Count",		minval = 1, 					group = group_rotation, display = display.none)
+var color		i_rotation_color	=	input.color(	color.gray,	"Color",					group = group_rotation, display = display.none)
 
 const string	group_cci			=	"- CCI -"
-var int			i_cci_length		=	input.int(	30,		"↔ Length",					group = group_cci, display = display.none)
-var bool		i_cci_markers		=	input.bool(	true,	"Markers",					group = group_cci, display = display.none)
+var int			i_cci_length		=	input.int(	36,		"↔ Length",					inline = "cci", group = group_cci, display = display.none)
+var bool		i_cci_markers		=	input.bool(	true,	"Markers",					inline = "cci", group = group_cci, display = display.none)
 
 const string	group_ema			=	"- EMA -"
-var int			i_ema_length_1		=	input.int(		4,				"EMA #1",		group = group_ema, display = display.none,	inline = "ema1")
-var color		i_ema_color_1		=	input.color(	color.green,	"",				group = group_ema, display = display.none,	inline = "ema1")
+var int			i_ema_length_1		=	input.int(		4,				"EMA #1-2",		group = group_ema, display = display.none,	inline = "ema1")
+var int			i_ema_length_2		=	input.int(		8,				"",				group = group_ema, display = display.none,	inline = "ema1")
+var int			i_ema_length_3		=	input.int(		12,				"EMA #3-4",		group = group_ema, display = display.none,	inline = "ema2")
+var int			i_ema_length_4		=	input.int(		16,				"",				group = group_ema, display = display.none,	inline = "ema2")
+var int			i_ema_length_5		=	input.int(		20,				"EMA #5-6",		group = group_ema, display = display.none,	inline = "ema3")
+var int			i_ema_length_6		=	input.int(		24,				"",				group = group_ema, display = display.none,	inline = "ema3")
 
-var int			i_ema_length_2		=	input.int(		8,				"EMA #2",		group = group_ema, display = display.none,	inline = "ema2")
-var color		i_ema_color_2		=	input.color(	color.lime,	"",				group = group_ema, display = display.none,	inline = "ema2")
-
-var int			i_ema_length_3		=	input.int(		12,				"EMA #3",		group = group_ema, display = display.none,	inline = "ema3")
-var color		i_ema_color_3		=	input.color(	color.yellow,	"",				group = group_ema, display = display.none,	inline = "ema3")
-
-var int			i_ema_length_4		=	input.int(		16,				"EMA #4",		group = group_ema, display = display.none,	inline = "ema4")
-var color		i_ema_color_4		=	input.color(	color.orange,	"",				group = group_ema, display = display.none,	inline = "ema4")
-
-var int			i_ema_length_5		=	input.int(		20,				"EMA #5",		group = group_ema, display = display.none,	inline = "ema5")
-var color		i_ema_color_5		=	input.color(	color.fuchsia,	"",				group = group_ema, display = display.none,	inline = "ema5")
-
-var int			i_ema_length_6		=	input.int(		24,				"EMA #6",		group = group_ema, display = display.none,	inline = "ema6")
-var color		i_ema_color_6		=	input.color(	color.purple,	"",				group = group_ema, display = display.none,	inline = "ema6")
-
-var bool		i_ema_background	=	input.bool(	true,	"🪣Background",				inline = "ema-bg", group = group_ema, display = display.none, tooltip = "Mark ordered EMAs:\nWhen green, signals are 1 > 6\nWhen red, signals are 1 < 6")
-var color		i_ema_bg_green		=	input.color(	color.rgb(182, 233, 124, 95),	"",				inline = "ema-bg", group = group_ema, display = display.none)
-var color		i_ema_bg_red		=	input.color(	color.rgb(139, 44, 76, 85),	"",				inline = "ema-bg", group = group_ema, display = display.none)
-
-const string	group_super_trend2			=	"- SuperTrend 2 -"
-var int			i_super_trend2_length		=	input.int(		30,		"↔ Length & Multiplier",		minval = 6, inline = "st2",	group = group_super_trend2, display = display.none)
-var float		i_super_trend2_mutliplier	=	input.float(	1.5,	"",									minval = 0.5, step = 0.5, inline = "st2",	group = group_super_trend2, display = display.none)
-var bool		i_super_trend2_show			=	input.bool(		true,	"Show",							inline = "st2-color", group = group_super_trend2, display = display.none)
-var bool		i_super_trend2_fill			=	input.bool(		false,	"Fill",							inline = "st2-color", group = group_super_trend2, display = display.none)
-var color		i_super_trend2_green		=	input.color(	color.rgb(134, 211, 255, 25),	"",		inline = "st2-color", group = group_super_trend2, display = display.none)
-var color		i_super_trend2_red			=	input.color(	#e4a9ffbf,		"",		inline = "st2-color", group = group_super_trend2, display = display.none)
-var color		i_super_trend2_yellow		=	input.color(	color.new(color.yellow, 25),	"",		inline = "st2-color", group = group_super_trend2, display = display.none)
+var bool		i_ema_markers		=	input.bool(		false,		"Markers",		inline = "ema", group = group_ema, display = display.none, tooltip = "Mark ordered EMAs:\nWhen green, signals are 1 > 6\nWhen red, signals are 1 < 6")
+var color		i_ema_green			=	input.color(	#00aa33,	"",				inline = "ema", group = group_ema, display = display.none)
+var color		i_ema_red			=	input.color(	#a00d3e,	"",				inline = "ema", group = group_ema, display = display.none)
 
 _fibb_alpha	=	0
 const string	group_day					=	"- Day Structure -"
-var bool		i_day_level					=	input.bool(		true,			"📅 Day Low/High",		group = group_day, display = display.none,	inline = "day")
+var bool		i_day_level					=	input.bool(		false,			"📅 Day Low/High",		group = group_day, display = display.none,	inline = "day")
 var color		i_day_high_color			=	input.color(	color.new(color.teal, 50),	"",			group = group_day, display = display.none,	inline = "day")
 var color		i_day_low_color				=	input.color(	color.new(color.fuchsia, 50),	"",		group = group_day, display = display.none,	inline = "day")
 var bool		i_day_fibb					=	input.bool(		true,			"Φ Fibbonachi",			group = group_day, display = display.none,	inline = "day-fibb",			tooltip = "Display day's low/high + it's fibbonachi levels; factor is fibbonachi level size")
-var float		i_day_fibb_factor			=	input.float(	0.3,			"Factor",				group = group_day, display = display.none,	inline = "day-fibb", minval = 0, step = 0.01)
 var color		i_day_fibb_color_1			=	input.color(	color.new(color.red,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
 var color		i_day_fibb_color_2			=	input.color(	color.new(color.yellow,	_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
 var color		i_day_fibb_color_3			=	input.color(	color.new(color.orange,	_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
@@ -602,20 +589,6 @@ var color		i_day_fibb_color_4			=	input.color(	color.new(color.green,		_fibb_alp
 var color		i_day_fibb_color_5			=	input.color(	color.new(color.teal,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
 var color		i_day_fibb_color_6			=	input.color(	color.new(color.aqua,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
 var color		i_day_fibb_color_7			=	input.color(	color.new(color.blue,		_fibb_alpha),	"",			group = group_day, display = display.none,	inline = "day-fibb-color")
-
-	//  ====================================================================================================================================================
-	//      Types specific for this system
-	//  ====================================================================================================================================================
-
-//	@type				This is a result from the main indicator fucntion
-//	@field	contexts	All the contexts produced by the indicator
-type Result
-	Contexts    contexts
-
-//  ---     Factory methods
-
-result_create() =>
-    Result.new(contexts_create())
 
 	//  ====================================================================================================================================================
 	//      Main Entry
@@ -627,25 +600,26 @@ result_create() =>
 
 //	@function	Main entry point of this indicator; even without any plotting, it could be used for strategy testing using TradingView built-in tester
 main() =>
-	var Result          _result     =	result_create()
-    Contexts        	_contexts   =   _result.contexts
+    Contexts	_contexts   =   contexts_create()
 
     use_day              		(_contexts)
-    use_day_fibbonachi   		(_contexts, i_day_fibb_factor)
+    use_day_fibbonachi   		(_contexts)
     use_ema              		(_contexts, i_ema_length_1, i_ema_length_2, i_ema_length_3, i_ema_length_4, i_ema_length_5, i_ema_length_6)
     use_cci              		(_contexts, i_cci_length)
 	use_volume					(_contexts)
-	use_macd					(_contexts, i_macd_fast, i_macd_slow, i_macd_signal)
-	use_super_trend2			(_contexts, i_super_trend2_length, i_super_trend2_mutliplier)
+	use_poi						(_contexts, i_poi_short_length, i_poi_short_size, i_poi_short_count, i_poi_short_offset, i_poi_short_color, i_poi_long_length, i_poi_long_size, i_poi_long_count, i_poi_long_offset, i_poi_long_color)
+	use_rotation				(_contexts, i_rotation_length, i_rotation_size, i_rotation_count, i_rotation_color)
 
-	_result
+	_contexts
 
 	//  ====================================================================================================================================================
 	//      Main Entry execution
 	//  ====================================================================================================================================================
 
-_result		=	main()
-_contexts	=	_result.contexts
+_contexts	=	main()
+
+_shape_size		=	size.small
+_label_alpha	=	75
 
 	//  ====================================================================================================================================================
 	//      Render day's low and high
@@ -659,42 +633,42 @@ _plot_low	=	plot(contexts_get_level(_contexts, "day", "level").low,		style =	plo
 
 if i_day_fibb
 	level_render_zone("day-fibb-0",		contexts_get_level(_contexts,	"day-fibbonachi", "0"),		na, na, i_day_fibb_color_1, false)
-// 	level_render_zone("day-fibb-20",	contexts_get_level(_contexts,	"day-fibbonachi", "20"),	na, na, i_day_fibb_color_2, false)
-// 	level_render_zone("day-fibb-30",	contexts_get_level(_contexts,	"day-fibbonachi", "30"),	na, na, i_day_fibb_color_3, false)
-// 	level_render_zone("day-fibb-50",	contexts_get_level(_contexts,	"day-fibbonachi", "50"),	na, na, i_day_fibb_color_4, false)
-// 	level_render_zone("day-fibb-60",	contexts_get_level(_contexts,	"day-fibbonachi", "60"),	na, na, i_day_fibb_color_5, false)
-// 	level_render_zone("day-fibb-70",	contexts_get_level(_contexts,	"day-fibbonachi", "70"),	na, na, i_day_fibb_color_6, false)
-// 	level_render_zone("day-fibb-100",	contexts_get_level(_contexts,	"day-fibbonachi", "100"),	na, na, i_day_fibb_color_7, false)
-
-	//  ====================================================================================================================================================
-	//      SuperTrend 2
-	//  ====================================================================================================================================================
-
-_super_up_plot		=	plot(i_super_trend2_show ? contexts_get_float(_contexts, "super-trend2", "up.signal")	:	na,	style	=	plot.style_steplinebr,	linewidth	=	3,	color	=	contexts_get_bool(_contexts, "super-trend2", "hits")	?	i_super_trend2_yellow	:	i_super_trend2_green,	display = display.pane, editable = false)
-_super_down_plot	=	plot(i_super_trend2_show ? contexts_get_float(_contexts, "super-trend2", "down.signal")	:	na,	style	=	plot.style_steplinebr,	linewidth	=	3,	color	=	contexts_get_bool(_contexts, "super-trend2", "hits")	?	i_super_trend2_yellow	:	i_super_trend2_red,		display = display.pane, editable = false)
-_plot_ohlc			=	plot(ohlc4, title="OHLC4", style=plot.style_circles, display = display.none, editable = false)
-
-fill(_plot_ohlc,	_super_up_plot,		color	=	i_super_trend2_fill and contexts_get_bool(_contexts, "super-trend2", "up")		? i_super_trend2_green	: na, title = "SuperTrend 2 - Uptrend")
-fill(_plot_ohlc,	_super_down_plot,	color	=	i_super_trend2_fill and contexts_get_bool(_contexts, "super-trend2", "down")	? i_super_trend2_red	: na, title = "SuperTrend 2 - Downtrend")
+	level_render_zone("day-fibb-20",	contexts_get_level(_contexts,	"day-fibbonachi", "20"),	na, na, i_day_fibb_color_2, false)
+	level_render_zone("day-fibb-30",	contexts_get_level(_contexts,	"day-fibbonachi", "30"),	na, na, i_day_fibb_color_3, false)
+	level_render_zone("day-fibb-50",	contexts_get_level(_contexts,	"day-fibbonachi", "50"),	na, na, i_day_fibb_color_4, false)
+	level_render_zone("day-fibb-60",	contexts_get_level(_contexts,	"day-fibbonachi", "60"),	na, na, i_day_fibb_color_5, false)
+	level_render_zone("day-fibb-70",	contexts_get_level(_contexts,	"day-fibbonachi", "70"),	na, na, i_day_fibb_color_6, false)
+	level_render_zone("day-fibb-100",	contexts_get_level(_contexts,	"day-fibbonachi", "100"),	na, na, i_day_fibb_color_7, false)
 
 	//  ====================================================================================================================================================
 	//      Render EMA
 	//  ====================================================================================================================================================
 
-fill(_plot_low, _plot_high, i_ema_background and contexts_get_bool(_contexts, "ema", "1-6") ?	i_ema_bg_green	: na,	title = "EMA - Uptrend")
-fill(_plot_low, _plot_high, i_ema_background and contexts_get_bool(_contexts, "ema", "6-1")	?	i_ema_bg_red	: na,	title = "EMA - Downtrend")
+plotshape(i_ema_markers	and	contexts_get_bool(_contexts, "ema", "1-6.signal.enter"),	"EMA Uptrend - Enter",		style = shape.circle,		size = _shape_size,  location = location.belowbar,	color = i_ema_green,    display = display.pane)
+plotshape(i_ema_markers	and	contexts_get_bool(_contexts, "ema", "1-6.signal.exit"),		"EMA Uptrend - Exit",		style = shape.circle,		size = _shape_size,  location = location.belowbar,	color = i_ema_red,		display = display.pane)
+
+plotshape(i_ema_markers	and	contexts_get_bool(_contexts, "ema", "6-1.signal.enter"),	"EMA Downtrend - Enter",	style = shape.circle,		size = _shape_size,  location = location.abovebar,	color = i_ema_green,	display = display.pane)
+plotshape(i_ema_markers	and	contexts_get_bool(_contexts, "ema", "6-1.signal.exit"),		"EMA Downtrend - Exit",		style = shape.circle,		size = _shape_size,  location = location.abovebar,	color = i_ema_red,		display = display.pane)
 
 	//  ====================================================================================================================================================
 	//      CCI markers
 	//  ====================================================================================================================================================
 
-_shape_size = size.small
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.exit"),		"CCI Below - Exit",		    style = shape.labelup,		size = _shape_size,  location = location.belowbar,	color = color.teal,         display = display.pane)
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.exit"),		"CCI Above - Exit",		    style = shape.labeldown,	size = _shape_size,  location = location.abovebar,	color = color.fuchsia,      display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.exit"),		"CCI Below - Exit",		    style = shape.labelup,		size = _shape_size,  location = location.belowbar,	color = color.new(color.teal, _label_alpha),         display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.exit"),		"CCI Below - Exit",		    style = shape.diamond,		size = _shape_size,  location = location.belowbar,	color = color.new(color.teal, _label_alpha),         display = display.pane)
 
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.enter"),		"CCI Below - Enter",		style = shape.labeldown,	size = _shape_size,  location = location.abovebar,	color = color.teal,         display = display.pane)
-plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.enter"),		"CCI Above - Enter",		style = shape.labelup,		size = _shape_size,  location = location.belowbar,	color = color.fuchsia,      display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.exit"),		"CCI Above - Exit",		    style = shape.labeldown,	size = _shape_size,  location = location.abovebar,	color = color.new(color.fuchsia, _label_alpha),		display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.exit"),		"CCI Above - Exit",		    style = shape.diamond,		size = _shape_size,  location = location.abovebar,	color = color.new(color.fuchsia, _label_alpha),		display = display.pane)
 
-	//  ====================================================================================================================================================
-	//      MACD Markers
-	//  ====================================================================================================================================================
+	//	---
+
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "lower.signal"),	"CCI Zero - Lower",			style = shape.labeldown,	size = _shape_size,  location = location.abovebar,	color = color.orange,		display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "higher.signal"),	"CCI Zero - Higher",		style = shape.labelup,		size = _shape_size,  location = location.belowbar,	color = color.blue,		display = display.pane)
+
+	//	---
+
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.enter"),		"CCI Below - Enter",		style = shape.labeldown,	size = _shape_size,  location = location.belowbar,	color = color.fuchsia,     display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "below.enter"),		"CCI Below - Enter",		style = shape.xcross,		size = _shape_size,  location = location.belowbar,	color = color.fuchsia,		display = display.pane)
+
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.enter"),		"CCI Above - Enter",		style = shape.labelup,		size = _shape_size,  location = location.abovebar,	color = color.teal,      	display = display.pane)
+plotshape(i_cci_markers and contexts_get_bool(_contexts, "cci", "above.enter"),		"CCI Above - Enter",		style = shape.xcross,		size = _shape_size,  location = location.abovebar,	color = color.teal,      	display = display.pane)

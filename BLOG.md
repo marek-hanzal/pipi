@@ -41,3 +41,11 @@ Long distance example:
 Takes current candle and searches for other candles to fit in the range. If it finds, it marks it as a rotation.
 
 ![rotation.png](_img/rotation.png)
+
+## Day Fibbonachi
+Simple stuff: draws current day's high and low and fibbonachi levels.
+
+Example:
+
+![day-fibb.png](_img/day-fibb.png)
+

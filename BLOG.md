@@ -14,12 +14,14 @@ This one tracks six EMAs from range (4, 8, 12, 16, 20, 24) and gives a signal wh
 is broken.
 
 Example:
+
 ![six-emas.png](_img/six-emas.png)
 
 ## CCI
 I like CCI, this is default implementation and I see it's quite useful.
 
 Example (all shown signals belongs to CCI):
+
 ![cci.png](_img/cci.png)
 
 ## Point-of-Interest
@@ -28,9 +30,11 @@ Looks back for the price on the current candle, if it is somewhere in the histor
 - Long term lookup (quite a bunch candles back)
 
 Short distance example:
+
 ![poi-short.png](_img/poi-short.png)
 
 Long distance example:
+
 ![poi-long.png](_img/poi-long.png)
 
 ## Simple Rotation Detection

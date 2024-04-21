@@ -7,6 +7,7 @@ What's going on:
 - I'm still researching most useful tools which would be included in PiPi
 - Current set is: `Six Emas`, `CCI`, `Point-of-Interest`, `Simple Rotation Detection` and `Day Fibbonachi`
 - Also, I've some idea in my mind to simplify the language, but I'm not sure, if it would be more readable
+- [New section](docs/indicators) with description for indicators used
 - _**So be please patient, the project is still on rails and going on.**_
 
 ## Six EMAs

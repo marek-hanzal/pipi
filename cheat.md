@@ -1,6 +1,6 @@
 ## Intro
 
-This is a cheat sheet for the PiPi Script Language. For examples, see for example [US500 strategies](us500%2F15min).
+This is a cheat sheet for the PiPi Script Language. For examples, see for example [US500 strategies](us500/15min).
 
 ## Action
 

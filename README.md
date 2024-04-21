@@ -2,8 +2,8 @@
 
 **This project is under heavy development, even it may look like an abandoned one. I'm still working on it. You may check [updates here](BLOG.md).**
 
-> There will be revision of strategies **every month**; "main" branch will contain **current** month, while previous months will
-> be archived in individual branches.
+> ~~There will be revision of strategies **every month**; "main" branch will contain **current** month, while previous months will
+> be archived in individual branches.~~ Not yet - after PiPi will settle down, so for now, this is kept in the box.
 
 ## Disclaimer
 

@@ -441,13 +441,14 @@ use_rotation(Contexts contexts, int length, float size, int count, color color) 
 
 use_day_candles(Contexts contexts) =>
 	var Context	_context		=	context_create("day-candles")
-	var int		_count			=	0
-	var int		_fibb_0_20		=	0
-	var int		_fibb_20_30		=	0
-	var int		_fibb_30_50		=	0
-	var int		_fibb_50_60		=	0
-	var int		_fibb_60_70		=	0
-	var int		_fibb_70_100	=	0
+	var int		_index			=	0
+	var float	_count			=	0
+	var float	_fibb_0_20		=	0
+	var float	_fibb_20_30		=	0
+	var float	_fibb_30_50		=	0
+	var float	_fibb_50_60		=	0
+	var float	_fibb_60_70		=	0
+	var float	_fibb_70_100	=	0
 
 	float		_bottom		=	math.min(open, close)
 	float		_top		=	math.max(open, close)
@@ -460,7 +461,12 @@ use_day_candles(Contexts contexts) =>
 	Level		_fibb_70	=	contexts_get_level(contexts, "day-fibbonachi", "70")
 	Level		_fibb_100	=	contexts_get_level(contexts, "day-fibbonachi", "100")
 
+	_is_green	=	close >= open
+	_is_red		=	close < open
+	_index		+=	1
+
 	if bool(ta.change(time('D')))
+		_index			:=	0
 		_count			:=	0
 		_fibb_0_20		:=	0
 		_fibb_20_30		:=	0
@@ -469,29 +475,36 @@ use_day_candles(Contexts contexts) =>
 		_fibb_60_70		:=	0
 		_fibb_70_100	:=	0
 
+	_weight		=	_index * _index * _index
+
+	_score_high		=	1
+	_score_medium	=	1
+	_score_low		=	1
+	_penalty		=	1
+
 	if (_bottom		>=	_fibb_20.level and _bottom <= _fibb_0.level) or (_top	>=	_fibb_20.level and _top <= _fibb_0.level)
-		_count		+=	1
-		_fibb_0_20	+=	1
+		_count		+=	_weight * (_is_green ? _score_high : _penalty)
+		_fibb_0_20	+=	_weight * (_is_green ? _score_high : _penalty)
 
 	if (_bottom		>=	_fibb_30.level and _bottom <= _fibb_20.level) or (_top	>=	_fibb_30.level and _top <= _fibb_20.level)
-		_count		+=	1
-		_fibb_20_30	+=	1
+		_count		+=	_weight * (_is_green ? _score_medium : _penalty)
+		_fibb_20_30	+=	_weight * (_is_green ? _score_medium : _penalty)
 
 	if (_bottom		>=	_fibb_50.level and _bottom <= _fibb_30.level) or (_top	>=	_fibb_50.level and _top <= _fibb_30.level)
-		_count		+=	1
-		_fibb_30_50	+=	1
+		_count		+=	_weight * (_is_green ? _score_low : _penalty)
+		_fibb_30_50	+=	_weight * (_is_green ? _score_low : _penalty)
 
 	if (_bottom		>=	_fibb_60.level and _bottom <= _fibb_50.level) or (_top	>=	_fibb_60.level and _top <= _fibb_50.level)
-		_count		+=	1
-		_fibb_50_60	+=	1
+		_count		+=	_weight * (_is_red ? _score_low : _penalty)
+		_fibb_50_60	+=	_weight * (_is_red ? _score_low : _penalty)
 
 	if (_bottom		>=	_fibb_70.level and _bottom <= _fibb_60.level) or (_top	>=	_fibb_70.level and _top <= _fibb_60.level)
-		_count		+=	1
-		_fibb_60_70	+=	1
+		_count		+=	_weight * (_is_red ? _score_medium : _penalty)
+		_fibb_60_70	+=	_weight * (_is_red ? _score_medium : _penalty)
 
 	if (_bottom		>=	_fibb_100.level and _bottom <= _fibb_70.level) or (_top	>=	_fibb_100.level and _top <= _fibb_70.level)
-		_count			+=	1
-		_fibb_70_100	+=	1
+		_count			+=	_weight * (_is_red ? _score_high : _penalty)
+		_fibb_70_100	+=	_weight * (_is_red ? _score_high : _penalty)
 
 	context_set(_context, "count",	_count)
 	context_set(_context, "0-20",	_fibb_0_20)
@@ -636,7 +649,7 @@ bgcolor(_session_2 ? i_session_2_color : na)
 	//      Info table
 	//  ====================================================================================================================================================
 
-var table	_table	=	table.new(position.bottom_center, 7, 4)
+var table	_table	=	table.new(position.bottom_center, 7, 3)
 if barstate.islast
 	_range		=	_high - _low
 	_percent	=	(100 * (close - _low)) / (_high - _low)
@@ -651,44 +664,18 @@ if barstate.islast
 	table.cell(_table, 3, 0, str.format("{0, number} / {1, number} ({2,number,0.0}%)", close - _low, _range, _percent), text_color = _color)
 
 	_fibb_width			=	4
-	_candle_count		=	contexts_get_int(_contexts, "day-candles", "count")
+	_candle_count		=	contexts_get_float(_contexts, "day-candles", "count")
 
-	_count_0_20			=	contexts_get_int(_contexts, "day-candles", "0-20")
-	_count_20_30		=	contexts_get_int(_contexts, "day-candles", "20-30")
-	_count_30_50		=	contexts_get_int(_contexts, "day-candles", "30-50")
-	_count_50_60		=	contexts_get_int(_contexts, "day-candles", "50-60")
-	_count_60_70		=	contexts_get_int(_contexts, "day-candles", "60-70")
-	_count_70_100		=	contexts_get_int(_contexts, "day-candles", "70-100")
-
-	//	---
-
-	_row_info	=	1
-	table.cell(_table, 0, _row_info, "0 - 20",		width = _fibb_width,	text_color = i_day_fibb_color_1)
-	table.cell(_table, 1, _row_info, "20 - 30",		width = _fibb_width,	text_color = i_day_fibb_color_2)
-	table.cell(_table, 2, _row_info, "30 - 50",		width = _fibb_width,	text_color = i_day_fibb_color_3)
-
-	table.cell(_table, 3, _row_info, "Count",		width = _fibb_width,	text_color = color.orange)
-
-	table.cell(_table, 4, _row_info, "50 - 60",		width = _fibb_width,	text_color = i_day_fibb_color_5)
-	table.cell(_table, 5, _row_info, "60 - 70",		width = _fibb_width,	text_color = i_day_fibb_color_6)
-	table.cell(_table, 6, _row_info, "70 - 100",	width = _fibb_width,	text_color = i_day_fibb_color_7)
+	_count_0_20			=	contexts_get_float(_contexts, "day-candles", "0-20")
+	_count_20_30		=	contexts_get_float(_contexts, "day-candles", "20-30")
+	_count_30_50		=	contexts_get_float(_contexts, "day-candles", "30-50")
+	_count_50_60		=	contexts_get_float(_contexts, "day-candles", "50-60")
+	_count_60_70		=	contexts_get_float(_contexts, "day-candles", "60-70")
+	_count_70_100		=	contexts_get_float(_contexts, "day-candles", "70-100")
 
 	//	---
 
-	_row_counts	=	2
-	table.cell(_table, 0, _row_counts, str.format("{0, number}", _count_0_20),		width = _fibb_width,	text_color = i_day_fibb_color_1)
-	table.cell(_table, 1, _row_counts, str.format("{0, number}", _count_20_30),		width = _fibb_width,	text_color = i_day_fibb_color_2)
-	table.cell(_table, 2, _row_counts, str.format("{0, number}", _count_30_50),		width = _fibb_width,	text_color = i_day_fibb_color_3)
-
-	table.cell(_table, 3, _row_counts, str.format("{0, number}", _candle_count), 	width = _fibb_width,	text_color = color.orange)
-
-	table.cell(_table, 4, _row_counts, str.format("{0, number}", _count_50_60),		width = _fibb_width,	text_color = i_day_fibb_color_5)
-	table.cell(_table, 5, _row_counts, str.format("{0, number}", _count_60_70),		width = _fibb_width,	text_color = i_day_fibb_color_6)
-	table.cell(_table, 6, _row_counts, str.format("{0, number}", _count_70_100),	width = _fibb_width,	text_color = i_day_fibb_color_7)
-
-	//	----
-
-	_row_percent	=	3
+	_row_percent	=	1
 
 	_percent_0_20	=	100 * _count_0_20 / _candle_count
 	_percent_20_30	=	100 * _count_20_30 / _candle_count
@@ -698,9 +685,9 @@ if barstate.islast
 	_percent_60_70	=	100 * _count_60_70 / _candle_count
 	_percent_70_100	=	100 * _count_70_100 / _candle_count
 
-	_score_high		=	4
-	_score_middle	=	1.5
-	_score_low		=	0.5
+	_score_high		=	15
+	_score_middle	=	5
+	_score_low		=	1.5
 
 	_long_power		=	((_percent_0_20 * _score_high) + (_percent_20_30 * _score_middle) + (_percent_30_50 * _score_low)) / 3
 	_short_power	=	((_percent_50_60 * _score_low) + (_percent_60_70 * _score_middle) + (_percent_70_100 * _score_high)) / 3
@@ -714,3 +701,13 @@ if barstate.islast
 	table.cell(_table, 4, _row_percent, str.format("{0,number,0.0}%", _percent_50_60),	width = _fibb_width,	text_color = i_day_fibb_color_5)
 	table.cell(_table, 5, _row_percent, str.format("{0,number,0.0}%", _percent_60_70),	width = _fibb_width,	text_color = i_day_fibb_color_6)
 	table.cell(_table, 6, _row_percent, str.format("{0,number,0.0}%", _percent_70_100),	width = _fibb_width,	text_color = i_day_fibb_color_7)
+
+	_trend			=	_short_power	>	_long_power ? "Dead Zone" : "-"
+	_trend			:=	_short_power 	>	_long_power and _percent_60_70	> _percent_50_60 ? "Weak Short" 	: _trend
+	_trend			:=	_short_power	>	_long_power and _percent_70_100	> _percent_60_70 ? (_percent_70_100 >= 50 ? "Strong Short" : "Short")	: _trend
+
+	_trend			:=	_long_power		>	_short_power ? "Dead Zone" : _trend
+	_trend			:=	_long_power		>	_short_power and _percent_20_30		> _percent_30_50 ? "Weak Long" 		: _trend
+	_trend			:=	_long_power		>	_short_power and _percent_0_20		> _percent_20_30 ? (_percent_0_20 >= 50 ? "Strong Long" : "Long")	: _trend
+
+	table.cell(_table, 3, 2, _trend,	width = _fibb_width,	text_color = _long_power > _short_power ? color.green : color.red)
